@@ -94,6 +94,7 @@ void listenClient(int clientSocket) {
 	uint8_t *buf = (uint8_t *) malloc(1024);
 	int r = 0;
 	bool again = true;
+	int doRetry = 0;
 
 	while (again) {
 		r = read(clientSocket, &buf[0], 1024);
@@ -146,13 +147,18 @@ void listenClient(int clientSocket) {
 				} else {
 					//cout<<"PTP Command: "<<(int)ptp->packet_command<<endl;
 					int pLen = ptp->packet_len;
-					r = libusb_bulk_transfer(handle, writeEndpoint,
-							(uint8_t *) ptp, pLen, &writen, 400);
-					if (r != 0) {
-						cout << "Error write USB command packet: " << (int) r
-								<< endl;
-						break;
+					doRetry = 0;
+					while(true) {
+						r = libusb_bulk_transfer(handle, writeEndpoint,	(uint8_t *) ptp, pLen, &writen, 800);
+						if (r != 0) {
+							cout << "Error write USB command packet: " << (int) r<< endl
+							doRetry++;
+							if (doRetry == 5)
+								break;
+						}
 					}
+					if (r != 0)
+						break;
 					if (pLen != writen) {
 						cout << "Command packet pLen: " << (int) pLen
 								<< " writen: " << (int) writen << endl;
@@ -162,7 +168,7 @@ void listenClient(int clientSocket) {
 						ptp = (PtpPacketPtr *) &buf[i + 6 + pLen];
 						pLen = ptp->packet_len;
 						r = libusb_bulk_transfer(handle, writeEndpoint,
-								(uint8_t *) ptp, pLen, &writen, 400);
+								(uint8_t *) ptp, pLen, &writen, 800);
 						if (r != 0) {
 							cout << "Error write USB data packet: " << (int) r
 									<< endl;
