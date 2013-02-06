@@ -35,7 +35,7 @@ void startSocketServer() {
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sockfd < 0) {
-		printf("ERROR opening socket");
+		printf("ERROR opening socket\n");
 		return;
 	}
 
@@ -46,7 +46,7 @@ void startSocketServer() {
 	serv_addr.sin_port = htons(portno);
 
 	if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-		printf("ERROR on binding");
+		printf("ERROR on binding\n");
 		return;
 	}
 	listen(sockfd, 5);
@@ -55,10 +55,10 @@ void startSocketServer() {
 
 	while (true) {
 		// await client connections (only 1 client)
-		printf("Awaiting client connection");
+		printf("Awaiting client connection\n");
 		clientSocket = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
 		if (clientSocket < 0) {
-			printf("ERROR on accept");
+			printf("ERROR on accept\n");
 		} else {
 			// do we have an USB imaging device
 			if (findImagingDevice()) {
@@ -71,9 +71,9 @@ void startSocketServer() {
 					// reset the usb device
 					r = libusb_reset_device(handle);
 					if (r != 0) {
-						printf("Error reseting USB device: %i", r);
+						printf("Error reseting USB device: %i\n", r);
 					} else
-						printf("USB reset OK");
+						printf("USB reset OK\n");
 
 					// close the USB device
 					closeUsb();
@@ -81,7 +81,7 @@ void startSocketServer() {
 			}
 			// close client socket
 			close(clientSocket);
-			printf("Client finished");
+			printf("Client finished\n");
 		}
 	}
 }
@@ -96,11 +96,11 @@ void listenClient(int clientSocket) {
 	while (again) {
 		r = read(clientSocket, &buf[0], 1024);
 		if (r < 0) {
-			printf("Error reading from socket: %d", r);
+			printf("Error reading from socket: %d\n", r);
 			break;
 		}
 		if (r == 0) {
-			printf("Error reading from socket 0");
+			printf("Error reading from socket 0\n");
 			break;
 		}
 
@@ -120,7 +120,7 @@ void listenClient(int clientSocket) {
 			if ((int) len == r) {
 				PtpPacketPtr * ptp = (PtpPacketPtr *) &buf[i + 6];
 				if (ptp->packet_command == 1) {
-					printf("USB device vendor and product ID command");
+					printf("USB device vendor and product ID command\n");
 					// return the usb vendor and product id response
 					uint8_t *responseData = (uint8_t *) malloc(26);
 					responseData[0] = 0x55;
@@ -138,7 +138,7 @@ void listenClient(int clientSocket) {
 					r = write(clientSocket, responseData, 6 + 12 + 8);
 					free(responseData);
 					if (r < 0) {
-						printf("Error sending USB response");
+						printf("Error sending USB response\n");
 						break;
 					}
 				} else {
@@ -148,7 +148,7 @@ void listenClient(int clientSocket) {
 					while(true) {
 						r = libusb_bulk_transfer(handle, writeEndpoint,	(uint8_t *) ptp, pLen, &writen, 800);
 						if (r != 0) {
-							printf("Error write USB command packet: %d", r);
+							printf("Error write USB command packet: %d\n", r);
 							doRetry++;
 							if (doRetry == 5)
 								break;
@@ -159,7 +159,7 @@ void listenClient(int clientSocket) {
 					if (r != 0)
 						break;
 					if (pLen != writen) {
-						printf("Command packet pLen: %d writen: %d", pLen, writen);
+						printf("Command packet pLen: %d writen: %d\n", pLen, writen);
 					}
 					if ((int) len > (pLen + 6)) {
 						// send the data packet
@@ -168,11 +168,11 @@ void listenClient(int clientSocket) {
 						r = libusb_bulk_transfer(handle, writeEndpoint,
 								(uint8_t *) ptp, pLen, &writen, 800);
 						if (r != 0) {
-							printf("Error write USB data packet: %d", r);
+							printf("Error write USB data packet: %d\n", r);
 							break;
 						}
 						if (pLen != writen) {
-							printf("Command data packet pLen: %d writen: %d", pLen, writen);
+							printf("Command data packet pLen: %d writen: %d\n", pLen, writen);
 						}
 					}
 					// wait for answer
@@ -202,7 +202,7 @@ void listenClient(int clientSocket) {
 							}
 
 						} else {
-							printf("No packet read from USB");
+							printf("No packet read from USB\n");
 							break;
 						}
 					}
@@ -233,11 +233,11 @@ void listenClient(int clientSocket) {
 
 					free(responseData);
 					if (r < 0) {
-						printf("Error sending response packet to client: %d", r);
+						printf("Error sending response packet to client: %d\n", r);
 						break;
 					}
 					if (r == 0) {
-						printf("Error sending response packet to client 0");
+						printf("Error sending response packet to client 0\n");
 						break;
 					}
 					//cout<<"USB response sent"<<endl;
@@ -263,7 +263,7 @@ uint8_t* readPtpPacket(int &length) {
 			else {
 				retry++;
 				if (retry > 10) {
-					printf("Result is 0 but no USB data after 10 retries");
+					printf("Result is 0 but no USB data after 10 retries\n");
 					free(buf);
 					return NULL;
 				}
@@ -272,7 +272,7 @@ uint8_t* readPtpPacket(int &length) {
 		if (r == -1) {
 			retry++;
 			if (retry > 10) {
-				printf("No USB data after 10 retries");
+				printf("No USB data after 10 retries\n");
 				free(buf);
 				return NULL;
 			}
@@ -294,12 +294,12 @@ uint8_t* readPtpPacket(int &length) {
 				} else if (r == -1) {
 					retry++;
 					if (retry > 10) {
-						printf("No read after 10 retries for USB second packet read: %d length: %d", read, len);
+						printf("No read after 10 retries for USB second packet read: %d length: %d\n", read, len);
 						free(buf);
 						return NULL;
 					}
 				} else {
-					printf("Error reading USB second packet: %d", r);
+					printf("Error reading USB second packet: %d\n", r);
 					free(buf);
 					break;
 				}
@@ -309,7 +309,7 @@ uint8_t* readPtpPacket(int &length) {
 			return buf;
 		}
 	} else {
-		printf("Error reading USB packet: %d", r);
+		printf("Error reading USB packet: %d\n", r);
 		free(buf);
 	}
 	return NULL;
@@ -321,18 +321,18 @@ bool initUsbDevice() {
 
 	if (findImagingDevice()) {
 		if (libusb_kernel_driver_active(handle, 0) == 1) { //find out if kernel driver is attached
-			printf("Kernel driver active");
+			printf("Kernel driver active\n");
 			if (libusb_detach_kernel_driver(handle, 0) == 0) //detach it
-				printf("kernel driver detached!");
+				printf("kernel driver detached!\n");
 		}
 	}
 	if (imagingInterface >= 0) {
 		r = libusb_claim_interface(handle, imagingInterface); //claim imaging interface
 		if (r < 0) {
-			printf("Cannot claim interface");
+			printf("Cannot claim interface\n");
 			return initialized;
 		}
-		printf("Claimed interface");
+		printf("Claimed interface\n");
 		interfaceClaimed = true;
 		initialized = true;
 	}
@@ -343,20 +343,20 @@ void closeUsb() {
 	int r;
 	if (handle != NULL) {
 		if (interfaceClaimed) {
-			printf("Releasing interface");
+			printf("Releasing interface\n");
 			r = libusb_release_interface(handle, imagingInterface);
 			if (r != 0) {
-				printf("Cannot release interface");
+				printf("Cannot release interface\n");
 			}
 		}
-		printf("Closing USB device");
+		printf("Closing USB device\n");
 		libusb_close(handle);
 	}
 	usbVendorId = 0;
 	usbProductId = 0;
 
 	if (ctx != NULL) {
-		printf("Exit libusb");
+		printf("Exit libusb\n");
 		libusb_exit(ctx); //close the session
 	}
 }
@@ -373,15 +373,15 @@ bool findImagingDevice() {
 	ssize_t cnt; //holding number of devices in list
 	r = libusb_init(&ctx); //initialize a library session
 	if (r < 0) {
-		printf("Init error: %d", r);
+		printf("Init error: %d\n", r);
 		return result;
 	}
 	libusb_set_debug(ctx, 0); //set verbosity level to 3, as suggested in the documentation
 	cnt = libusb_get_device_list(ctx, &devs); //get the list of devices
 	if (cnt < 0) {
-		printf("Get device error");
+		printf("Get device error\n");
 	}
-	printf("Devices in list");
+	printf("Devices in list\n");
 	ssize_t i; //for iterating through the list
 	for (i = 0; i < cnt; i++) {
 		libusb_device *device = devs[i];
@@ -389,12 +389,12 @@ bool findImagingDevice() {
 		if (imagingInterface >= 0) {
 			r = libusb_open(device, &handle);
 			if (r == 0) {
-				printf("USB imaging device opened");
+				printf("USB imaging device opened\n");
 				usbDevice = device;
 				result = true;
 				break;
 			} else
-				printf("Error opening USB device");
+				printf("Error opening USB device\n");
 		}
 	}
 
@@ -410,10 +410,10 @@ int findImagingInterface(libusb_device *dev) {
 	libusb_device_descriptor desc;
 	int r = libusb_get_device_descriptor(dev, &desc);
 	if (r < 0) {
-		printf("Failed to get device descriptor: %d", r);
+		printf("Failed to get device descriptor: %d\n", r);
 		return found;
 	}
-	printf("Number of possible configurations: %d Device Class: %d VendorID: %d, ProductID: %d", desc.bNumConfigurations, desc.bDeviceClass, desc.idVendor, desc.idProduct);
+	printf("Number of possible configurations: %d Device Class: %d VendorID: %d, ProductID: %d\n", desc.bNumConfigurations, desc.bDeviceClass, desc.idVendor, desc.idProduct);
 
 	usbVendorId = desc.idVendor;
 	usbProductId = desc.idProduct;
@@ -432,20 +432,20 @@ int findImagingInterface(libusb_device *dev) {
 			break;
 
 		inter = &config->interface[i];
-		printf("Number of alternate settings:");
+		printf("Number of alternate settings:\n");
 
 		int j = 0;
 		while (j < inter->num_altsetting) {
 			interdesc = &inter->altsetting[j];
 
-			printf("Interface class: %d Interface number: %d Number of endpoints: %d", interdesc->bInterfaceClass, interdesc->bInterfaceNumber, interdesc->bNumEndpoints);
+			printf("Interface class: %d Interface number: %d Number of endpoints: %d\n", interdesc->bInterfaceClass, interdesc->bInterfaceNumber, interdesc->bNumEndpoints);
 
 			if (interdesc->bInterfaceClass == 6) {
 				for (int k = 0; k < (int) interdesc->bNumEndpoints; k++) {
 
 					epdesc = &interdesc->endpoint[k];
 
-					printf("Endpoint descriptor type: %d address: %d", epdesc->bDescriptorType, epdesc->bEndpointAddress);
+					printf("Endpoint descriptor type: %d address: %d\n", epdesc->bDescriptorType, epdesc->bEndpointAddress);
 
 
 					if ((epdesc->bEndpointAddress
@@ -465,7 +465,7 @@ int findImagingInterface(libusb_device *dev) {
 						writeEndpoint = epdesc->bEndpointAddress;
 
 				}
-				printf("Found imaging device with write endpoint: %d and read endpoint: %d", writeEndpoint, readEndpoint);
+				printf("Found imaging device with write endpoint: %d and read endpoint: %d\n", writeEndpoint, readEndpoint);
 
 				found = i;
 				again = false;
