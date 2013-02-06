@@ -19,8 +19,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include "DslrDashboardServer.h"
 
-using namespace std;
-
 int main() {
 
 	startSocketServer();
@@ -37,7 +35,7 @@ void startSocketServer() {
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sockfd < 0) {
-		cout << "ERROR opening socket" << endl;
+		printf("ERROR opening socket");
 		return;
 	}
 
@@ -48,7 +46,7 @@ void startSocketServer() {
 	serv_addr.sin_port = htons(portno);
 
 	if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-		cout << "ERROR on binding" << endl;
+		printf("ERROR on binding");
 		return;
 	}
 	listen(sockfd, 5);
@@ -57,10 +55,10 @@ void startSocketServer() {
 
 	while (true) {
 		// await client connections (only 1 client)
-		cout<<"Awaiting client connection"<<endl;
+		printf("Awaiting client connection");
 		clientSocket = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
 		if (clientSocket < 0) {
-			cout << "ERROR on accept" << endl;
+			printf("ERROR on accept");
 		} else {
 			// do we have an USB imaging device
 			if (findImagingDevice()) {
@@ -73,10 +71,9 @@ void startSocketServer() {
 					// reset the usb device
 					r = libusb_reset_device(handle);
 					if (r != 0) {
-						cout << "Error reseting USB device: " << (int) r
-								<< endl;
+						printf("Error reseting USB device: %i", r);
 					} else
-						cout << "USB reset OK" << endl;
+						printf("USB reset OK");
 
 					// close the USB device
 					closeUsb();
@@ -84,7 +81,7 @@ void startSocketServer() {
 			}
 			// close client socket
 			close(clientSocket);
-			cout << "Client finished" << endl;
+			printf("Client finished");
 		}
 	}
 }
@@ -99,11 +96,11 @@ void listenClient(int clientSocket) {
 	while (again) {
 		r = read(clientSocket, &buf[0], 1024);
 		if (r < 0) {
-			cout << "Error reading from socket" << (int) r << endl;
+			printf("Error reading from socket: %d", r);
 			break;
 		}
 		if (r == 0) {
-			cout << "Error reading from socket 0" << endl;
+			printf("Error reading from socket 0");
 			break;
 		}
 
@@ -123,7 +120,7 @@ void listenClient(int clientSocket) {
 			if ((int) len == r) {
 				PtpPacketPtr * ptp = (PtpPacketPtr *) &buf[i + 6];
 				if (ptp->packet_command == 1) {
-					cout << "USB device vendor and product ID command" << endl;
+					printf("USB device vendor and product ID command");
 					// return the usb vendor and product id response
 					uint8_t *responseData = (uint8_t *) malloc(26);
 					responseData[0] = 0x55;
@@ -141,7 +138,7 @@ void listenClient(int clientSocket) {
 					r = write(clientSocket, responseData, 6 + 12 + 8);
 					free(responseData);
 					if (r < 0) {
-						cout << "Error sending usb response" << endl;
+						printf("Error sending USB response");
 						break;
 					}
 				} else {
@@ -151,17 +148,18 @@ void listenClient(int clientSocket) {
 					while(true) {
 						r = libusb_bulk_transfer(handle, writeEndpoint,	(uint8_t *) ptp, pLen, &writen, 800);
 						if (r != 0) {
-							cout << "Error write USB command packet: " << (int) r<< endl
+							printf("Error write USB command packet: %d", r);
 							doRetry++;
 							if (doRetry == 5)
 								break;
 						}
+						else
+							break;
 					}
 					if (r != 0)
 						break;
 					if (pLen != writen) {
-						cout << "Command packet pLen: " << (int) pLen
-								<< " writen: " << (int) writen << endl;
+						printf("Command packet pLen: %d writen: %d", pLen, writen);
 					}
 					if ((int) len > (pLen + 6)) {
 						// send the data packet
@@ -170,13 +168,11 @@ void listenClient(int clientSocket) {
 						r = libusb_bulk_transfer(handle, writeEndpoint,
 								(uint8_t *) ptp, pLen, &writen, 800);
 						if (r != 0) {
-							cout << "Error write USB data packet: " << (int) r
-									<< endl;
+							printf("Error write USB data packet: %d", r);
 							break;
 						}
 						if (pLen != writen) {
-							cout << "Command data packet pLen: " << (int) pLen
-									<< " writen: " << (int) writen << endl;
+							printf("Command data packet pLen: %d writen: %d", pLen, writen);
 						}
 					}
 					// wait for answer
@@ -206,7 +202,7 @@ void listenClient(int clientSocket) {
 							}
 
 						} else {
-							cout << "No packet read from USB" << endl;
+							printf("No packet read from USB");
 							break;
 						}
 					}
@@ -237,12 +233,11 @@ void listenClient(int clientSocket) {
 
 					free(responseData);
 					if (r < 0) {
-						cout << "Error sending resp packet to client "
-								<< (int) r << endl;
+						printf("Error sending response packet to client: %d", r);
 						break;
 					}
 					if (r == 0) {
-						cout << "Error sending resp packet to client 0" << endl;
+						printf("Error sending response packet to client 0");
 						break;
 					}
 					//cout<<"USB response sent"<<endl;
@@ -268,8 +263,7 @@ uint8_t* readPtpPacket(int &length) {
 			else {
 				retry++;
 				if (retry > 10) {
-					cout << "Result is 0 but no USB data after 10 retries"
-							<< endl;
+					printf("Result is 0 but no USB data after 10 retries");
 					free(buf);
 					return NULL;
 				}
@@ -278,7 +272,7 @@ uint8_t* readPtpPacket(int &length) {
 		if (r == -1) {
 			retry++;
 			if (retry > 10) {
-				cout << "No USB data after 10 retries" << endl;
+				printf("No USB data after 10 retries");
 				free(buf);
 				return NULL;
 			}
@@ -300,16 +294,12 @@ uint8_t* readPtpPacket(int &length) {
 				} else if (r == -1) {
 					retry++;
 					if (retry > 10) {
-						cout
-								<< "No read after 10 retryes for USB second packet read: "
-								<< (int) read << " length: " << (int) len
-								<< endl;
+						printf("No read after 10 retries for USB second packet read: %d length: %d", read, len);
 						free(buf);
 						return NULL;
 					}
 				} else {
-					cout << "Error reading USB second packet: " << (int) r
-							<< endl;
+					printf("Error reading USB second packet: %d", r);
 					free(buf);
 					break;
 				}
@@ -319,7 +309,7 @@ uint8_t* readPtpPacket(int &length) {
 			return buf;
 		}
 	} else {
-		cout << "Error reading USB packet: " << (int) r << endl;
+		printf("Error reading USB packet: %d", r);
 		free(buf);
 	}
 	return NULL;
@@ -331,18 +321,18 @@ bool initUsbDevice() {
 
 	if (findImagingDevice()) {
 		if (libusb_kernel_driver_active(handle, 0) == 1) { //find out if kernel driver is attached
-			cout << "Kernel Driver Active" << endl;
+			printf("Kernel driver active");
 			if (libusb_detach_kernel_driver(handle, 0) == 0) //detach it
-				cout << "Kernel Driver Detached!" << endl;
+				printf("kernel driver detached!");
 		}
 	}
 	if (imagingInterface >= 0) {
 		r = libusb_claim_interface(handle, imagingInterface); //claim imaging interface
 		if (r < 0) {
-			cout << "Cannot Claim Interface" << endl;
+			printf("Cannot claim interface");
 			return initialized;
 		}
-		cout << "Claimed Interface" << endl;
+		printf("Claimed interface");
 		interfaceClaimed = true;
 		initialized = true;
 	}
@@ -353,20 +343,20 @@ void closeUsb() {
 	int r;
 	if (handle != NULL) {
 		if (interfaceClaimed) {
-			cout << "Releasing interface" << endl;
+			printf("Releasing interface");
 			r = libusb_release_interface(handle, imagingInterface);
 			if (r != 0) {
-				cout << "Cannot Release Interface" << endl;
+				printf("Cannot release interface");
 			}
 		}
-		cout << "Closing USB device" << endl;
+		printf("Closing USB device");
 		libusb_close(handle);
 	}
 	usbVendorId = 0;
 	usbProductId = 0;
 
 	if (ctx != NULL) {
-		cout << "Exit libusb" << endl;
+		printf("Exit libusb");
 		libusb_exit(ctx); //close the session
 	}
 }
@@ -383,15 +373,15 @@ bool findImagingDevice() {
 	ssize_t cnt; //holding number of devices in list
 	r = libusb_init(&ctx); //initialize a library session
 	if (r < 0) {
-		cout << "Init Error " << r << endl; //there was an error
+		printf("Init error: %d", r);
 		return result;
 	}
 	libusb_set_debug(ctx, 0); //set verbosity level to 3, as suggested in the documentation
 	cnt = libusb_get_device_list(ctx, &devs); //get the list of devices
 	if (cnt < 0) {
-		cout << "Get Device Error" << endl; //there was an error
+		printf("Get device error");
 	}
-	cout << cnt << " Devices in list." << endl; //print total number of usb devices
+	printf("Devices in list");
 	ssize_t i; //for iterating through the list
 	for (i = 0; i < cnt; i++) {
 		libusb_device *device = devs[i];
@@ -399,12 +389,12 @@ bool findImagingDevice() {
 		if (imagingInterface >= 0) {
 			r = libusb_open(device, &handle);
 			if (r == 0) {
-				cout << "USB imaging device opened" << endl;
+				printf("USB imaging device opened");
 				usbDevice = device;
 				result = true;
 				break;
 			} else
-				cout << "Error opening USB device" << endl;
+				printf("Error opening USB device");
 		}
 	}
 
@@ -420,22 +410,16 @@ int findImagingInterface(libusb_device *dev) {
 	libusb_device_descriptor desc;
 	int r = libusb_get_device_descriptor(dev, &desc);
 	if (r < 0) {
-		cout << "failed to get device descriptor" << endl;
+		printf("Failed to get device descriptor: %d", r);
 		return found;
 	}
-	cout << "Number of possible configurations: "
-			<< (int) desc.bNumConfigurations << "  ";
-	cout << "Device Class: " << (int) desc.bDeviceClass << "  ";
-	cout << "VendorID: " << desc.idVendor << "  ";
-	cout << "ProductID: " << desc.idProduct << endl;
+	printf("Number of possible configurations: %d Device Class: %d VendorID: %d, ProductID: %d", desc.bNumConfigurations, desc.bDeviceClass, desc.idVendor, desc.idProduct);
 
 	usbVendorId = desc.idVendor;
 	usbProductId = desc.idProduct;
 
 	libusb_config_descriptor *config;
 	libusb_get_config_descriptor(dev, 0, &config);
-
-	cout << "Interfaces: " << (int) config->bNumInterfaces << " ||| ";
 
 	const libusb_interface *inter;
 	const libusb_interface_descriptor *interdesc;
@@ -448,29 +432,21 @@ int findImagingInterface(libusb_device *dev) {
 			break;
 
 		inter = &config->interface[i];
-		cout << "Number of alternate settings: " << inter->num_altsetting
-				<< " | ";
+		printf("Number of alternate settings:");
 
 		int j = 0;
 		while (j < inter->num_altsetting) {
 			interdesc = &inter->altsetting[j];
 
-			cout << "Interface class: " << (int) interdesc->bInterfaceClass
-					<< " | ";
-			cout << "Interface Number: " << (int) interdesc->bInterfaceNumber
-					<< " | ";
-			cout << "Number of endpoints: " << (int) interdesc->bNumEndpoints
-					<< " | ";
+			printf("Interface class: %d Interface number: %d Number of endpoints: %d", interdesc->bInterfaceClass, interdesc->bInterfaceNumber, interdesc->bNumEndpoints);
 
 			if (interdesc->bInterfaceClass == 6) {
 				for (int k = 0; k < (int) interdesc->bNumEndpoints; k++) {
 
 					epdesc = &interdesc->endpoint[k];
 
-					cout << "Descriptor Type: " << (int) epdesc->bDescriptorType
-							<< " | ";
-					cout << "EP Address: " << (int) epdesc->bEndpointAddress
-							<< " | ";
+					printf("Endpoint descriptor type: %d address: %d", epdesc->bDescriptorType, epdesc->bEndpointAddress);
+
 
 					if ((epdesc->bEndpointAddress
 							== (LIBUSB_ENDPOINT_IN
@@ -489,10 +465,8 @@ int findImagingInterface(libusb_device *dev) {
 						writeEndpoint = epdesc->bEndpointAddress;
 
 				}
-				cout << "Found write: " << (int) writeEndpoint << " | ";
-				cout << "Found read: " << (int) readEndpoint << " | ";
+				printf("Found imaging device with write endpoint: %d and read endpoint: %d", writeEndpoint, readEndpoint);
 
-				cout << "Found imaging device";
 				found = i;
 				again = false;
 				break;
@@ -501,7 +475,6 @@ int findImagingInterface(libusb_device *dev) {
 		}
 		i++;
 	}
-	cout << endl << endl;
 	libusb_free_config_descriptor(config);
 	return found;
 }
