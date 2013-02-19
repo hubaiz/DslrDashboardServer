@@ -116,7 +116,7 @@ void listenClient(int clientSocket) {
 		}
 
 		if (isFound) {
-			uint32_t len = *(uint32_t *) &buf[i + 2];
+			uint32_t len = le32toh(*(uint32_t *) &buf[i + 2]);
 			if ((int) len == r) {
 				PtpPacketPtr * ptp = (PtpPacketPtr *) &buf[i + 6];
 				if (ptp->packet_command == 1) {
@@ -125,16 +125,16 @@ void listenClient(int clientSocket) {
 					uint8_t *responseData = (uint8_t *) malloc(26);
 					responseData[0] = 0x55;
 					responseData[1] = 0xaa;
-					uint32_t *tst = (uint32_t *) &responseData[2];
-					*tst = 26;
+					uint32_t *tst = (uint32_t *)  &responseData[2];
+					*tst = htole32(26);
 					PtpUsbResponsePtr * usbResponse =
 							(PtpUsbResponsePtr *) &responseData[6];
-					(*usbResponse).ptpPacket.packet_len = 12 + 8; // ptp packet + 2 * 4
+					(*usbResponse).ptpPacket.packet_len = htole32(12 + 8); // ptp packet + 2 * 4
 					(*usbResponse).ptpPacket.packet_type = 0x03; // response
-					(*usbResponse).ptpPacket.packet_command = 0x2001; // OK response
+					(*usbResponse).ptpPacket.packet_command = htole16(0x2001); // OK response
 					(*usbResponse).ptpPacket.session_ID = 1;
-					(*usbResponse).vendorId = (uint32_t) usbVendorId;
-					(*usbResponse).productId = (uint32_t) usbProductId;
+					(*usbResponse).vendorId = htole32((uint32_t) usbVendorId);
+					(*usbResponse).productId = htole32((uint32_t) usbProductId);
 					r = write(clientSocket, responseData, 6 + 12 + 8);
 					free(responseData);
 					if (r < 0) {
@@ -143,7 +143,7 @@ void listenClient(int clientSocket) {
 					}
 				} else {
 					//cout<<"PTP Command: "<<(int)ptp->packet_command<<endl;
-					int pLen = ptp->packet_len;
+					int pLen = le32toh(ptp->packet_len);
 					doRetry = 0;
 					while(true) {
 						r = libusb_bulk_transfer(handle, writeEndpoint,	(uint8_t *) ptp, pLen, &writen, 800);
@@ -164,7 +164,7 @@ void listenClient(int clientSocket) {
 					if ((int) len > (pLen + 6)) {
 						// send the data packet
 						ptp = (PtpPacketPtr *) &buf[i + 6 + pLen];
-						pLen = ptp->packet_len;
+						pLen = le32toh(ptp->packet_len);
 						r = libusb_bulk_transfer(handle, writeEndpoint,
 								(uint8_t *) ptp, pLen, &writen, 800);
 						if (r != 0) {
@@ -186,7 +186,7 @@ void listenClient(int clientSocket) {
 						if (inData != NULL) {
 							PtpPacketPtr *ptr = (PtpPacketPtr *) inData;
 
-							switch (ptr->packet_type) {
+							switch (le16toh(ptr->packet_type)) {
 							case 3:
 								//cout<<"Got response packet len: "<<(int)read<<endl;
 								responsePacket = inData;
@@ -213,7 +213,7 @@ void listenClient(int clientSocket) {
 					responseData[0] = 0x55;
 					responseData[1] = 0xaa;
 					uint32_t *tst = (uint32_t *) &responseData[2];
-					*tst = 6 + responsePacketLength + dataPacketLength;
+					*tst = htole32(6 + responsePacketLength + dataPacketLength);
 
 					int index = 6;
 					if (responsePacket != NULL) {
@@ -280,7 +280,7 @@ uint8_t* readPtpPacket(int &length) {
 	}
 	if (r == 0) {
 		PtpPacketPtr *ptpPacket = (PtpPacketPtr *) buf;
-		int len = ptpPacket->packet_len;
+		int len = le32toh(ptpPacket->packet_len);
 		int read = readBytes;
 		if (len > read) {
 			buf = (uint8_t *) realloc(buf, len);
