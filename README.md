@@ -32,7 +32,7 @@ Install Git and libusb-1.0-0-dev:
 
 	sudo apt-get install git libusb-1.0-0-dev
 
-Clone the *DslrDashboardServer* repository and switch to the *src* direcory:
+Clone the *DslrDashboardServer* repository and switch to the *src* directory:
 
 	git clone git://github.com/hubaiz/DslrDashboardServer
 	cd DslrDashboardServer/src
