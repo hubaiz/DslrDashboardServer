@@ -11,6 +11,8 @@ After DslrDashboard has connect to ddserver, ddserver will send the connected US
 If there is only one USB camera connected then DslrDashboard will open that one.
 If there are more USB cameras connected DslrDashboard will display a dialog where you can select the desired camera.
 
+You can find installation image for MR3040 at https://code.google.com/p/dslrdashboard/downloads/list
+or you can contact me if you have problem building your own image.
 
 
 ## Compile DslrDashboard Server on OpenWrt
@@ -32,7 +34,9 @@ Upon installation DDserver will add an init script so you can start/stop it from
 Switch to the *DslrDashboardServer/src* directory, and compile the source code:
 
 	g++ -Wall main.cpp communicator.cpp -I/usr/include/libusb-1.0/ -L/usr/lib /usr/lib/i386-linux-gnu/libusb-1.0.a -lpthread -lrt -lstdc++ -o ddserver
-on x64 systems
+
+or on x64 systems
+
 	g++ -Wall main.cpp communicator.cpp -I/usr/include/libusb-1.0/ -L/usr/lib /usr/lib/x86_64-linux-gnu/libusb-1.0.a -lpthread -lrt -lstdc++ -o ddserver
 
 Make the resulting *ddserver* binary executable and launch the server:
