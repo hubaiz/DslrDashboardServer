@@ -7,8 +7,8 @@
 
 #include "communicator.h"
 
-Communicator::Communicator(int socket) : mSocket(socket), mIsInitialized(false), mIsUsbInitialized(false),
-															mHandle(NULL), mDevice(NULL), mImagingInterface(-1), mInterfaceClaimed(false)
+Communicator::Communicator(int socket) : mSocket(socket), mIsInitialized(false), mIsUsbInitialized(false), 
+			   mHandle(NULL), mDevice(NULL), mImagingInterface(-1), mInterfaceClaimed(false)
 {
 	int r = libusb_init(&mCtx);
 	if (r == 0) {
@@ -465,9 +465,7 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 	libusb_config_descriptor *config;
 	const libusb_interface *inter;
 	const libusb_interface_descriptor *interdesc;
-	const libusb_endpoint_descriptor *epdesc;
 	libusb_device_handle *deviceHandle;
-	unsigned char strBuf[255];
 
 	r = libusb_get_device_descriptor(dev, &desc);
 
@@ -518,10 +516,10 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 
 							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iManufacturer, &(imgUsbDevice.iVendorName[0]), 255);
 							if (r <= 0)
-								syslog(LOG_ERR, "Error getting USB Vendor name: %r", r);
+								syslog(LOG_ERR, "Error getting USB Vendor name: %d", r);
 							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iProduct, &(imgUsbDevice.iProductName[0]), 255);
 							if (r <= 0)
-								syslog(LOG_ERR, "Error getting USB Product name: %r", r);
+								syslog(LOG_ERR, "Error getting USB Product name: %d", r);
 
 							libusb_close(deviceHandle);
 
