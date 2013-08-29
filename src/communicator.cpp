@@ -7,8 +7,8 @@
 
 #include "communicator.h"
 
-Communicator::Communicator(int socket) : mSocket(socket), mIsInitialized(false), mIsUsbInitialized(false), 
-			   mHandle(NULL), mDevice(NULL), mImagingInterface(-1), mInterfaceClaimed(false)
+Communicator::Communicator(int socket) : mSocket(socket), mIsInitialized(false), mIsUsbInitialized(false),
+															mHandle(NULL), mDevice(NULL), mImagingInterface(-1), mInterfaceClaimed(false)
 {
 	int r = libusb_init(&mCtx);
 	if (r == 0) {
@@ -89,7 +89,7 @@ bool Communicator::processPacket(uint8_t *buf, int size) {
 			uint32_t productId = le32toh(*(uint32_t *)&buf[PTP_HEADER+4]);
 
 			// try to open usb device
-			mIsInitialized = initUsbDevice((uint16_t)vendorId, (uint16_t)productId);
+			mIsInitialized = openUsbDevice((uint16_t)vendorId, (uint16_t)productId); //initUsbDevice((uint16_t)vendorId, (uint16_t)productId);
 
 			// ok
 			sendResponsePacket(mIsInitialized ? 0x2001 : 0x2002, header->session_ID);
@@ -286,6 +286,101 @@ int Communicator::sendBuffer(uint8_t *buf, int size) {
 	return r;
 }
 
+bool Communicator::openUsbDevice(uint16_t vendorId, uint16_t productId) {
+	libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
+	libusb_device_descriptor desc;
+	int r = 0;
+	ssize_t cnt; //holding number of devices in list
+
+	std::list<ImagingUsbDevice> imgUsbDevices;
+
+	if (mIsUsbInitialized) {
+
+		cnt = libusb_get_device_list(mCtx, &devs); //get the list of devices
+		if (cnt > 0) {
+			syslog(LOG_INFO, "USB Devices in");
+			ssize_t i = 0; //for iterating through the list
+			while(i < cnt) {
+				libusb_device *device = devs[i];
+				r = libusb_get_device_descriptor(device, &desc);
+				if (r == 0) {
+					if (desc.idVendor == vendorId && desc.idProduct == productId) {
+						if (canOpenUsbImagingDevice(device, &desc)) {
+							return initUsbDevice(device);
+						}
+						i++;
+					}
+				}
+			}
+		}
+		else
+			syslog(LOG_INFO, "Can't found USB devices");
+	}
+
+	libusb_free_device_list(devs, 1); //free the list, unref the devices in it
+
+	return false;
+}
+
+bool Communicator::initUsbDevice(libusb_device *device) {
+	libusb_device_descriptor desc;
+	libusb_config_descriptor *config;
+	const libusb_interface *inter;
+	const libusb_interface_descriptor *interdesc;
+	const libusb_endpoint_descriptor *epdesc;
+
+	int r;
+	bool result = false;
+
+	if (device != NULL) {
+	mDevice = device;
+	r = libusb_open(device, &mHandle);
+	if (r == 0 && mHandle != NULL) {
+		syslog(LOG_INFO, "USB device opened");
+		r = libusb_get_device_descriptor(mDevice, &desc);
+		if (r == 0) {
+				r = libusb_get_config_descriptor(mDevice, 0, &config);
+				if (r == 0) {
+					int i = 0, j = 0;
+					while (i < config->bNumInterfaces) {
+						inter = &config->interface[i];
+						j = 0;
+						while (j < inter->num_altsetting) {
+							interdesc = &inter->altsetting[j];
+							if (interdesc->bInterfaceClass == 6) {
+								uint8_t readEp = 129, writeEp = 2;
+								for (int k = 0; k < (int) interdesc->bNumEndpoints; k++) {
+									epdesc = &interdesc->endpoint[k];
+									if ((epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_ISOCHRONOUS)) || (epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_BULK))) {
+										readEp = epdesc->bEndpointAddress;
+										syslog(LOG_INFO, "Read endpoint adress: %d", readEp);
+									}
+									if ((epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_OUT | LIBUSB_TRANSFER_TYPE_ISOCHRONOUS)) || (epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_OUT	| LIBUSB_TRANSFER_TYPE_BULK))) {
+										writeEp = epdesc->bEndpointAddress;
+										syslog(LOG_INFO, "Write endpoint adress: %d", writeEp);
+									}
+								}
+								result = claimInterface(readEp, writeEp, i);
+								j = inter->num_altsetting;
+								i = config->bNumInterfaces;
+							}
+							j++;
+						}
+						i++;
+					}
+					libusb_free_config_descriptor(config);
+				}
+				else
+					syslog(LOG_ERR, "Error opening USB device config descriptor: %d", r);
+		} else
+			syslog(LOG_ERR, "Failed to get device descriptor: %d", r);
+	}
+	else
+		syslog(LOG_ERR, "Error opening device");
+	}
+	return result;
+}
+
 bool Communicator::initUsbDevice(uint16_t vendorId, uint16_t productId) {
 	libusb_device_descriptor desc;
 	libusb_config_descriptor *config;
@@ -457,6 +552,19 @@ std::list<ImagingUsbDevice> Communicator::enumerateUsbImagingDevices() {
 	return imgUsbDevices;
 }
 
+uint32_t Communicator::getHash(const unsigned char * str){
+    uint32_t hash = 0;
+    int c;
+
+    while((c = *str++))
+    {
+        /* hash = hash * 33 ^ c */
+        hash = ((hash << 5) + hash) ^ c;
+    }
+
+    return hash;
+}
+
 void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDevice> *deviceList) {
 
 
@@ -476,8 +584,8 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 
 	syslog(LOG_INFO, "Number of possible configurations: %d Device Class: %d VendorID: %d, ProductID: %d", desc.bNumConfigurations, desc.bDeviceClass, desc.idVendor, desc.idProduct);
 
-	libusb_get_config_descriptor(dev, 0, &config);
-
+	r = libusb_get_config_descriptor(dev, 0, &config);
+	if (r == 0) {
 
 	int i = 0;
 	bool again = true;
@@ -507,12 +615,18 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 
 						if( libusb_claim_interface(deviceHandle, i) == 0) {; //claim imaging interface
 
+
 							ImagingUsbDevice imgUsbDevice;
+//							unsigned char serial[255];
+//							uint16_t lang = 0;
 
 							imgUsbDevice.iVendorId = desc.idVendor;
 							imgUsbDevice.iProductId = desc.idProduct;
 							bzero(&imgUsbDevice.iVendorName[0], 255);
 							bzero(&imgUsbDevice.iProductName[0], 255);
+
+//							 libusb_get_string_descriptor(deviceHandle, 0, 0, &serial[0], 255);
+//							 lang = serial[2] << 8 | serial[3];
 
 							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iManufacturer, &(imgUsbDevice.iVendorName[0]), 255);
 							if (r <= 0)
@@ -520,11 +634,18 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iProduct, &(imgUsbDevice.iProductName[0]), 255);
 							if (r <= 0)
 								syslog(LOG_ERR, "Error getting USB Product name: %d", r);
+//							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iSerialNumber, &serial[0], 255);
+//							if (r <= 0)
+//								syslog(LOG_ERR, "Error getting USB serial: %d", r);
 
+							libusb_release_interface(deviceHandle, i);
 							libusb_close(deviceHandle);
 
 							syslog(LOG_INFO, "Device Manufacturer: %s", imgUsbDevice.iVendorName);
 							syslog(LOG_INFO, "Device Product: %s", imgUsbDevice.iProductName);
+//							syslog(LOG_INFO, "Device Serial: %s", serial);
+//							uint32_t hash = getHash(&serial[0]);
+//							syslog(LOG_INFO, "Device Serial hash: %08x", hash);
 							deviceList->push_front(imgUsbDevice);
 						}
 					}
@@ -539,5 +660,76 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 		i++;
 	}
 	libusb_free_config_descriptor(config);
+	}
+}
+
+bool Communicator::canOpenUsbImagingDevice(libusb_device *dev, libusb_device_descriptor *desc) {
+
+	bool result = false;
+
+	int r = 0;
+	libusb_config_descriptor *config;
+	const libusb_interface *inter;
+	const libusb_interface_descriptor *interdesc;
+	libusb_device_handle *deviceHandle;
+
+
+		syslog(LOG_INFO, "Number of possible configurations: %d Device Class: %d VendorID: %d, ProductID: %d",
+				desc->bNumConfigurations, desc->bDeviceClass, desc->idVendor, desc->idProduct);
+
+		r = libusb_get_config_descriptor(dev, 0, &config);
+		if (r == 0) {
+
+			int i = 0;
+			bool again = true;
+			while (again) {
+				if (i >= config->bNumInterfaces)
+					break;
+
+				inter = &config->interface[i];
+				syslog(LOG_INFO, "Number of alternate settings:");
+
+				int j = 0;
+				while (j < inter->num_altsetting) {
+					interdesc = &inter->altsetting[j];
+
+					syslog(LOG_INFO, "Interface class: %d Interface number: %d Number of endpoints: %d",
+							interdesc->bInterfaceClass, interdesc->bInterfaceNumber, interdesc->bNumEndpoints);
+
+					if (interdesc->bInterfaceClass == 6) {
+						syslog(LOG_INFO, "Found USB imaging device, get vendor and product");
+						again = false;
+
+						r = libusb_open(dev, &deviceHandle);
+						if (r != 0) {
+							syslog(LOG_INFO, "Error opening USB imaging device: %d", r);
+							break;
+						} else {
+							if (libusb_kernel_driver_active(deviceHandle, 0) == 0) { //find out if kernel driver is attached
+
+								if( libusb_claim_interface(deviceHandle, i) == 0) {; //claim imaging interface
+
+									libusb_release_interface(deviceHandle, i);
+
+									libusb_close(deviceHandle);
+
+									result = true;
+
+									break;
+								}
+							}
+							else
+								syslog(LOG_INFO, "Kernel driver active");
+						}
+						break;
+					}
+					j++;
+				}
+				i++;
+			}
+			libusb_free_config_descriptor(config);
+		}
+
+	return result;
 }
 

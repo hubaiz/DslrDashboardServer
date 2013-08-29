@@ -19,6 +19,7 @@
 #ifndef COMMUNICATOR_H_
 #define COMMUNICATOR_H_
 
+
 #define PTP_HEADER 12
 
 struct ImagingUsbDevice {
@@ -26,6 +27,7 @@ struct ImagingUsbDevice {
 	uint16_t iProductId;
 	unsigned char iVendorName[255];
 	unsigned char iProductName[255];
+	//uint32_t iSerialHash;
 };
 
 struct PtpPacket{
@@ -53,6 +55,8 @@ class Communicator {
 	void startListening();
 	bool readFromClient();
 	bool processPacket(uint8_t * buf, int size);
+	bool openUsbDevice(uint16_t vendorId, uint16_t productId);
+	bool initUsbDevice(libusb_device *device);
 	bool initUsbDevice(uint16_t vendorId, uint16_t productId);
 	bool claimInterface(uint8_t readEp, uint8_t writeEp, int interfaceNo);
 	void closeUsbDevice();
@@ -65,7 +69,10 @@ class Communicator {
 
 	std::list<ImagingUsbDevice> enumerateUsbImagingDevices();
 	void isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDevice> *deviceList);
+	bool canOpenUsbImagingDevice(libusb_device *dev, libusb_device_descriptor *desc);
 	void sendDeviceList(int clientSocket, std::list<ImagingUsbDevice> *deviceList);
+
+	uint32_t getHash(const unsigned char * str);
 
 
 public:
