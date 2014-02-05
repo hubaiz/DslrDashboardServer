@@ -2,8 +2,8 @@
 # Example script
 # Copyright (C) 2007 OpenWrt.org
 
- START=98
- STOP=98
+ START=99
+ STOP=99
 
 DAEMON_PATH="/usr/bin/"
 
