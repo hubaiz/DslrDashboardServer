@@ -14,6 +14,7 @@ If there are more USB cameras connected DslrDashboard will display a dialog wher
 You can find installation image for MR3040 at https://code.google.com/p/dslrdashboard/downloads/list
 or you can contact me if you have problem building your own image.
 
+**Added a simple device discovery**
 
 ## Compile DslrDashboard Server on OpenWrt
 
