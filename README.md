@@ -24,7 +24,6 @@ Clone the *DslrDashboardServer* repository to the *packages* directory on OpenWr
 
 Run then the following commands:
 
-	execute
 	make menuconfig
 
 Under **Multimedia** select **ddserver**. Build OpenWrt or just a single package. The resulting package can be found in the *bin/[platform]/packages/ddserver_0.1-1.ipk* directory. If you selected * the package will be already installed in the OpenWrt image.
