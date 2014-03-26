@@ -15,7 +15,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <pthread.h>
-#include <list>
+#include <vector>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -95,8 +95,7 @@ private:
 	void closeUsbDevice();
 
 	void sendUsbDeviceList(uint32_t sessionId);
-	std::list<ImagingUsbDevice> enumerateUsbImagingDevices();
-	void isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDevice> *deviceList);
+	bool isUsbImagingDevice(libusb_device *dev, ImagingUsbDevice *imgUsbDevice);
 };
 
 

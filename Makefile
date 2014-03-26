@@ -6,14 +6,16 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ddserver
 PKG_VERSION:=0.2
-PKG_RELEASE:=11
+PKG_RELEASE:=12
+
+PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/ddserver
   SECTION:=utils
   CATEGORY:=Multimedia
-  DEPENDS:=+libusb-1.0 +libstdcpp
+  DEPENDS:=+libusb-1.0 +uclibcxx
   TITLE:=Server for DSLR camera to use with DslrDashboard
   MAINTAINER:=Zoltan Hubai <hubaiz@gmail.com>
 endef
@@ -29,12 +31,14 @@ define Build/Prepare
 endef
 
 define Build/Compile
-	$(TARGET_CXX) $(TARGET_CXXFLAGS) -Wall -I$(STAGING_DIR)/usr/include -I$(STAGING_DIR)/usr/include/libusb-1.0 \
-		-L$(STAGING_DIR)/lib -L$(STAGING_DIR)/usr/lib \
-		-lusb-1.0 \
-                -lstdc++ \
-                -lpthread \
-		-o $(PKG_BUILD_DIR)/ddserver $(PKG_BUILD_DIR)/main.cpp $(PKG_BUILD_DIR)/communicator.cpp
+	$(MAKE) -C $(PKG_BUILD_DIR) \
+		LIBS="-nodefaultlibs -lgcc -lc -lusb-1.0 -lpthread -luClibc++" \
+		LDFLAGS="$(EXTRA_LDFLAGS)" \
+		CXXFLAGS="$(TARGET_CFLAGS) $(EXTRA_CPPFLAGS)" \
+		$(TARGET_CONFIGURE_OPTS) \
+		CROSS="$(TARGET_CROSS)" \
+		ARCH="$(ARCH)" \
+		$(1);
 endef
 
 define Package/ddserver/install
@@ -50,4 +54,3 @@ define Package/ddserver/postinst
 endef
 
 $(eval $(call BuildPackage,ddserver))
-

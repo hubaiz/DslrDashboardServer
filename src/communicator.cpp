@@ -405,8 +405,6 @@ bool Communicator::openUsbDevice(uint16_t vendorId, uint16_t productId)
 	int r = 0;
 	ssize_t cnt; //holding number of devices in list
 
-	std::list<ImagingUsbDevice> imgUsbDevices;
-
 	if (isUsbContextInitialized()) {
 
 		cnt = libusb_get_device_list(mCtx, &devs); //get the list of devices
@@ -623,15 +621,40 @@ void Communicator::closeUsbDevice()
 }
 void Communicator::sendUsbDeviceList(uint32_t sessionId)
 {
-	std::list<ImagingUsbDevice> imgUsbDevices = enumerateUsbImagingDevices();
-	if (enumerateUsbImagingDevices().size() > 0)
+	libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
+
+	ssize_t cnt; //holding number of devices in list
+	std::vector<ImagingUsbDevice> imgUsbDevices;
+
+	if (isUsbContextInitialized()) {
+
+		cnt = libusb_get_device_list(mCtx, &devs); //get the list of devices
+		if (cnt < 0) {
+			syslog(LOG_INFO, "Can't found USB devices");
+		}
+		syslog(LOG_INFO, "USB Devices in");
+		ssize_t i; //for iterating through the list
+		for (i = 0; i < cnt; i++) {
+			libusb_device *device = devs[i];
+			ImagingUsbDevice imgUsbDevice;
+			if (isUsbImagingDevice(device, &imgUsbDevice))
+			{
+				imgUsbDevices.insert(imgUsbDevices.begin(), imgUsbDevice);
+			}
+		}
+		syslog(LOG_INFO, "Imaging USB devices found: %d", imgUsbDevices.size());
+	}
+
+	libusb_free_device_list(devs, 1); //free the list, unref the devices in it
+
+	if (imgUsbDevices.size() > 0)
 	{
 		// packet_size + device_count + data_packet_ptp_header + response_packet_ptp_header
 		int len = 4 + 2 + (PTP_HEADER * 2);
 		// space for device count
 		int devLen = 2;
 		// determine size of the devices
-		for (std::list<ImagingUsbDevice>::const_iterator usbDevice = imgUsbDevices.begin(), end = imgUsbDevices.end(); usbDevice != end; ++usbDevice)
+		for (std::vector<ImagingUsbDevice>::const_iterator usbDevice = imgUsbDevices.begin(), end = imgUsbDevices.end(); usbDevice != end; ++usbDevice)
 			devLen += 2 + 2 + strlen((const char *)&usbDevice->iVendorName[0]) + 1 + strlen((const char *)&usbDevice->iProductName[0]) + 1;
 		unsigned char *buf = (unsigned char *)malloc(len + devLen);
 		*(uint32_t *)&buf[0] = len + devLen;
@@ -639,7 +662,7 @@ void Communicator::sendUsbDeviceList(uint32_t sessionId)
 		int offset = 4 + PTP_HEADER;
 		*(uint16_t *)&buf[offset] = htole16(imgUsbDevices.size());
 		offset += 2;
-		for (std::list<ImagingUsbDevice>::const_iterator usbDevice = imgUsbDevices.begin(), end = imgUsbDevices.end(); usbDevice != end; ++usbDevice)
+		for (std::vector<ImagingUsbDevice>::const_iterator usbDevice = imgUsbDevices.begin(), end = imgUsbDevices.end(); usbDevice != end; ++usbDevice)
 		{
 			*(uint16_t *)&buf[offset] = htole16(usbDevice->iVendorId);
 			*(uint16_t *)&buf[offset + 2] = htole16(usbDevice->iProductId);
@@ -660,34 +683,7 @@ void Communicator::sendUsbDeviceList(uint32_t sessionId)
 		sendResponsePacket(0x2002, sessionId);
 }
 
-std::list<ImagingUsbDevice> Communicator::enumerateUsbImagingDevices() {
-	libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
-
-	ssize_t cnt; //holding number of devices in list
-
-	std::list<ImagingUsbDevice> imgUsbDevices;
-
-	if (isUsbContextInitialized()) {
-
-		cnt = libusb_get_device_list(mCtx, &devs); //get the list of devices
-		if (cnt < 0) {
-			syslog(LOG_INFO, "Can't found USB devices");
-		}
-		syslog(LOG_INFO, "USB Devices in");
-		ssize_t i; //for iterating through the list
-		for (i = 0; i < cnt; i++) {
-			libusb_device *device = devs[i];
-			isUsbImagingDevice(device, &imgUsbDevices);
-		}
-		syslog(LOG_INFO, "Imaging USB devices found: %d", imgUsbDevices.size());
-	}
-
-	libusb_free_device_list(devs, 1); //free the list, unref the devices in it
-
-	return imgUsbDevices;
-}
-
-void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDevice> *deviceList) {
+bool Communicator::isUsbImagingDevice(libusb_device *dev, ImagingUsbDevice *imgUsbDevice) {
 
 
 	int r = 0;
@@ -701,7 +697,7 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 
 	if (r < 0) {
 		syslog(LOG_ERR, "Failed to get device descriptor: %d", r);
-		return;
+		return false;
 	}
 
 	syslog(LOG_INFO, "Number of possible configurations: %d Device Class: %d VendorID: %d, ProductID: %d", desc.bNumConfigurations, desc.bDeviceClass, desc.idVendor, desc.idProduct);
@@ -738,23 +734,20 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 						if( libusb_claim_interface(deviceHandle, i) == 0) {; //claim imaging interface
 
 
-							ImagingUsbDevice imgUsbDevice;
-//							unsigned char serial[255];
-//							uint16_t lang = 0;
 
-							imgUsbDevice.iVendorId = desc.idVendor;
-							imgUsbDevice.iProductId = desc.idProduct;
-							bzero(&imgUsbDevice.iVendorName[0], 255);
-							bzero(&imgUsbDevice.iProductName[0], 255);
+							imgUsbDevice->iVendorId = desc.idVendor;
+							imgUsbDevice->iProductId = desc.idProduct;
+							bzero(&imgUsbDevice->iVendorName[0], 255);
+							bzero(&imgUsbDevice->iProductName[0], 255);
 //							bzero(&imgUsbDevice.iSerial[0], 255);
 
 //							 libusb_get_string_descriptor(deviceHandle, 0, 0, &serial[0], 255);
 //							 lang = serial[2] << 8 | serial[3];
 
-							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iManufacturer, &(imgUsbDevice.iVendorName[0]), 255);
+							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iManufacturer, &(imgUsbDevice->iVendorName[0]), 255);
 							if (r <= 0)
 								syslog(LOG_ERR, "Error getting USB Vendor name: %d", r);
-							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iProduct, &(imgUsbDevice.iProductName[0]), 255);
+							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iProduct, &(imgUsbDevice->iProductName[0]), 255);
 							if (r <= 0)
 								syslog(LOG_ERR, "Error getting USB Product name: %d", r);
 //							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iSerialNumber, &(imgUsbDevice.iSerial[0]), 255);
@@ -764,12 +757,12 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 							libusb_release_interface(deviceHandle, i);
 							libusb_close(deviceHandle);
 
-							syslog(LOG_INFO, "Device Manufacturer: %s", imgUsbDevice.iVendorName);
-							syslog(LOG_INFO, "Device Product: %s", imgUsbDevice.iProductName);
+							syslog(LOG_INFO, "Device Manufacturer: %s", imgUsbDevice->iVendorName);
+							syslog(LOG_INFO, "Device Product: %s", imgUsbDevice->iProductName);
 //							syslog(LOG_INFO, "Device Serial: %s", imgUsbDevice.iSerial);
 //							uint32_t hash = getHash(&serial[0]);
 //							syslog(LOG_INFO, "Device Serial hash: %08x", hash);
-							deviceList->push_front(imgUsbDevice);
+							return true;
 						}
 					}
 					else
@@ -784,4 +777,5 @@ void Communicator::isUsbImagingDevice(libusb_device *dev, std::list<ImagingUsbDe
 	}
 	libusb_free_config_descriptor(config);
 	}
+	return false;
 }

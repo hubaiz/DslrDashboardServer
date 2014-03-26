@@ -134,16 +134,23 @@ void startUdpListener() {
 
 		if (bytes > 0) {
 
-//			syslog(LOG_INFO, "recv: %d", bytes);
+			syslog(LOG_INFO, "recv: %d", bytes);
 
 			int diff = strncmp(&recvBuf[0], DD_CLIENT, sizeof(DD_CLIENT)-1);
 			if (diff == 0)
 			{
-				syslog(LOG_INFO, "Client multicast query");
-				if (sendto(UDPsocket, DD_SERVER, sizeof(DD_SERVER), 0, (SA *) & GroupAddress, sizeof(GroupAddress)) < 0) {
+				syslog(LOG_INFO, "Client multicast query %s", recvBuf);
+				int len = sizeof(DD_SERVER) - 1 + bytes - (sizeof(DD_CLIENT) -1);
+				char *buf = (char *)malloc(len);
+				strncpy(buf, DD_SERVER, sizeof(DD_SERVER)-1);
+				strncpy(&buf[sizeof(DD_SERVER)-1], &recvBuf[sizeof(DD_CLIENT)-1], bytes-(sizeof(DD_CLIENT) - 1));
+				syslog(LOG_INFO, "Server message length: %d   msg: %s",len, buf);
+				if (sendto(UDPsocket, buf, len, 0, (SA *) & GroupAddress, sizeof(GroupAddress)) < 0) {
 						syslog(LOG_ERR, "Error sending multicast response");
 						exit(-1);
 				}
+
+				free(buf);
 			}
 
 //			for ( // iterate through all the control headers
