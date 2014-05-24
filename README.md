@@ -58,7 +58,7 @@ Install Git and libusb-1.0-0-dev:
  
 ## Compile the server using the command bellow:
  
- 	g++ -Wall main.cpp communicator.cpp -I/usr/include/libusb-1.0/ -L/usr/lib /usr/lib/arm-linux-gnueabihf/libusb-1.0.a lpthread -lrt -lstdc++ -o ddserver
+ 	g++ -Wall main.cpp communicator.cpp -I/usr/include/libusb-1.0/ -L/usr/lib /usr/lib/arm-linux-gnueabihf/libusb-1.0.a -lpthread -lrt -lstdc++ -o ddserver
  
  Make the resulting *ddserver* binary executable and launch the server:
  
