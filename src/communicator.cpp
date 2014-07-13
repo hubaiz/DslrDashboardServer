@@ -315,7 +315,7 @@ uint8_t * Communicator::readUsbPacket(int &length)
 			currentPacketSize = 4 + packetSize1 + 4096;
 			buf = (uint8_t *)realloc(buf, currentPacketSize);
 			if (readPtpPacket(&buf[offset], packetSize1 - (offset-4 ), readBytes)) {
-				//syslog(LOG_INFO, "second packetSize1: %d currentPacketSize: %d  offset: %d   readBytes: %d", packetSize1, currentPacketSize, offset, readBytes);
+//				syslog(LOG_INFO, "second packetSize1: %d currentPacketSize: %d  offset: %d   readBytes: %d", packetSize1, currentPacketSize, offset, readBytes);
 			}
 			else
 				resume = false;
@@ -326,9 +326,26 @@ uint8_t * Communicator::readUsbPacket(int &length)
 			*(uint32_t *)&buf[0] = htole32(length);
 
 			if (!isResponse) {
-//				syslog(LOG_INFO, "first was data, read response");
 				// read in the respone
 				offset = 4 + packetSize1;
+//				syslog(LOG_INFO, "first was data, read response currentPacketSize: %d  offset: %d", currentPacketSize, offset);
+
+				// ensure there is enough for response packet - 128 bytes should be enough
+				if (currentPacketSize < (offset + 128)) {
+//					syslog(LOG_INFO, "Packet increased for response packet");
+					currentPacketSize = offset + 128;
+					buf = (uint8_t *)realloc(buf, currentPacketSize);
+				}
+//				if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes))
+//				{
+//					syslog(LOG_INFO, "Response packet read bytes: %d", readBytes);
+//					// set final total packet size
+//					*(uint32_t *)&buf[0] = htole32(offset + readBytes);
+//					return buf;
+//				}
+//				else
+//					syslog(LOG_ERR, "Error reading rest of the response packet");
+
 				if (readPtpPacket(&buf[offset], currentPacketSize - packetSize1 - 4, readBytes)) {
 //					syslog(LOG_INFO, "response packet load");
 
