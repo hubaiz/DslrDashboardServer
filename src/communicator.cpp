@@ -666,8 +666,8 @@ void Communicator::sendUsbDeviceList(uint32_t sessionId)
 
 	if (imgUsbDevices.size() > 0)
 	{
-		// packet_size + device_count + data_packet_ptp_header + response_packet_ptp_header
-		int len = 4 + 2 + (PTP_HEADER * 2);
+		// packet_size + data_packet_ptp_header + response_packet_ptp_header
+		int len = 4 + (PTP_HEADER * 2);
 		// space for device count
 		int devLen = 2;
 		// determine size of the devices
