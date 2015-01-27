@@ -94,7 +94,7 @@ void Communicator::sendWelcomeMessage()
 bool Communicator::readFromClient()
 {
 	bool result = false;
-	int r = 0;
+	ssize_t r = 0;
 	uint32_t packetSize = 0;
 
 	r = read(mSocket, &packetSize, 4);
@@ -111,12 +111,12 @@ bool Communicator::readFromClient()
 			result = processPacket(buf, packetSize - 4);
 		}
 		else
-			syslog(LOG_ERR, "Error reading packet : %d", r);
+			syslog(LOG_ERR, "Error reading packet : %ld", r);
 
 		free(buf);
 
 	} else
-		syslog(LOG_ERR, "Error reading total packet size: %d", r);
+		syslog(LOG_ERR, "Error reading total packet size: %ld", r);
 
 
 
@@ -310,7 +310,7 @@ uint8_t * Communicator::readUsbPacket(int &length)
 		isResponse = le16toh(ptpPacket->packet_type) == 0x0003;
 //		syslog(LOG_INFO, "packetSize1: %d", packetSize1);
 
-		if (packetSize1 > (currentPacketSize - 4)) {
+		if (packetSize1 > (uint32_t)(currentPacketSize - 4)) {
 			offset = currentPacketSize;
 			currentPacketSize = 4 + packetSize1 + 4096;
 			buf = (uint8_t *)realloc(buf, currentPacketSize);
@@ -659,7 +659,7 @@ void Communicator::sendUsbDeviceList(uint32_t sessionId)
 				imgUsbDevices.insert(imgUsbDevices.begin(), imgUsbDevice);
 			}
 		}
-		syslog(LOG_INFO, "Imaging USB devices found: %d", imgUsbDevices.size());
+		syslog(LOG_INFO, "Imaging USB devices found: %lu", imgUsbDevices.size());
 	}
 
 	libusb_free_device_list(devs, 1); //free the list, unref the devices in it

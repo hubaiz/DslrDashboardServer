@@ -134,7 +134,7 @@ void startUdpListener() {
 
 		if (bytes > 0) {
 
-			syslog(LOG_INFO, "recv: %d", bytes);
+			syslog(LOG_INFO, "recv: %ld", bytes);
 
 			int diff = strncmp(&recvBuf[0], DD_CLIENT, sizeof(DD_CLIENT)-1);
 			if (diff == 0)
