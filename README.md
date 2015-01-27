@@ -29,38 +29,18 @@ DslrDashboardServer
  
  Under **Multimedia** select **ddserver**. Build OpenWrt or just a single package. The resulting package can be found in the *bin/[platform]/packages/ddserver_0.1-1.ipk* directory. If you selected * the package will be already installed in the OpenWrt image.
  Upon installation DDserver will add an init script so you can start/stop it from the web interface (System->Startup).
- 
-## Compile DslrDashboard Server on Linux
- 
- Switch to the *DslrDashboardServer/src* directory, and compile the source code:
- 
- 	g++ -Wall main.cpp communicator.cpp -I/usr/include/libusb-1.0/ -L/usr/lib /usr/lib/i386-linux-gnu/libusb-1.0.a lpthread -lrt -lstdc++ -o ddserver
 
-or on x64 systems
 
-	g++ -Wall main.cpp communicator.cpp -I/usr/include/libusb-1.0/ -L/usr/lib /usr/lib/x86_64-linux-gnu/libusb-1.0.a lpthread -lrt -lstdc++ -o ddserver
+## Compile DslrDashboard Server on Debian based distributions, such as Ubuntu and Raspbian
+
+	sudo apt-get install build-essential pkg-config libusb-1.0-0-dev
+	g++ -Wall src/main.cpp src/communicator.cpp `pkg-config --libs --cflags libusb-1.0` -lpthread -lrt -lstdc++ -o ddserver
+
+## Compile DslrDashboard Server on other Linux distributions
+
+	g++ -Wall src/main.cpp src/communicator.cpp -I/usr/include/libusb-1.0/ -lusb-1.0 -lpthread -lrt -lstdc++ -o ddserver
 
 Make the resulting *ddserver* binary executable and launch the server:
 
 	chmod +x ddserver
 	./ddserver
-
-## Compile DslrDashboard Server on Raspberry Pi
-
-Install Git and libusb-1.0-0-dev:
- 
- 	sudo apt-get install git libusb-1.0-0-dev
- 
- Clone the *DslrDashboardServer* repository and switch to the *src* directory:
- 
- 	git clone git://github.com/hubaiz/DslrDashboardServer
- 	cd DslrDashboardServer/src
- 
-## Compile the server using the command bellow:
- 
- 	g++ -Wall main.cpp communicator.cpp -I/usr/include/libusb-1.0/ -L/usr/lib /usr/lib/arm-linux-gnueabihf/libusb-1.0.a -lpthread -lrt -lstdc++ -o ddserver
- 
- Make the resulting *ddserver* binary executable and launch the server:
- 
- 	chmod +x ddserver
- 	./ddserver
