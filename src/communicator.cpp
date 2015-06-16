@@ -674,7 +674,7 @@ void Communicator::sendUsbDeviceList(uint32_t sessionId)
 		for (std::vector<ImagingUsbDevice>::const_iterator usbDevice = imgUsbDevices.begin(), end = imgUsbDevices.end(); usbDevice != end; ++usbDevice)
 			devLen += 2 + 2 + strlen((const char *)&usbDevice->iVendorName[0]) + 1 + strlen((const char *)&usbDevice->iProductName[0]) + 1;
 		unsigned char *buf = (unsigned char *)malloc(len + devLen);
-		*(uint32_t *)&buf[0] = len + devLen;
+		*(uint32_t *)&buf[0] = htole32(len + devLen);
 		setPtpHeader(buf, 4, devLen + 12, 0x0002, 0x0002, sessionId);
 		int offset = 4 + PTP_HEADER;
 		*(uint16_t *)&buf[offset] = htole16(imgUsbDevices.size());

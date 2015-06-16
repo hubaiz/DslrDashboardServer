@@ -26,7 +26,7 @@
 #define PTP_HEADER 12
 
 #define DDS_MAJOR  1
-#define DDS_MINOR  0
+#define DDS_MINOR  1
 #define DDS_NAME "DslrDashboardServer"
 
 struct ImagingUsbDevice {
