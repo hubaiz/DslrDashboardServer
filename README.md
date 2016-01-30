@@ -19,9 +19,9 @@ DslrDashboardServer
  
 ## Compile DslrDashboard Server on OpenWrt
  
- Clone the *DslrDashboardServer* repository to the *packages* directory on OpenWrt:
+ Clone the *DslrDashboardServer* repository to the *package* directory on OpenWrt:
  
- 	git clone git://github.com/hubaiz/DslrDashboardServer packages/DslrDashboardServer
+ 	git clone git://github.com/hubaiz/DslrDashboardServer package/DslrDashboardServer
  
  Run then the following commands:
  
