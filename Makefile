@@ -15,7 +15,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/ddserver
   SECTION:=utils
   CATEGORY:=Multimedia
-  DEPENDS:=+libusb-1.0 +uclibcxx
+  DEPENDS:=+libusb-1.0 +uclibcxx +libstdcpp
   TITLE:=Server for DSLR camera to use with DslrDashboard
   MAINTAINER:=Zoltan Hubai <hubaiz@gmail.com>
 endef
@@ -32,7 +32,7 @@ endef
 
 define Build/Compile
 	$(MAKE) -C $(PKG_BUILD_DIR) \
-		LIBS="-nodefaultlibs -lgcc -lc -lusb-1.0 -lpthread -luClibc++" \
+		LIBS="-lgcc -lc -lusb-1.0 -lpthread -luClibc++" \
 		LDFLAGS="$(EXTRA_LDFLAGS)" \
 		CXXFLAGS="$(TARGET_CFLAGS) $(EXTRA_CPPFLAGS)" \
 		$(TARGET_CONFIGURE_OPTS) \
