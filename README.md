@@ -12,16 +12,16 @@ DslrDashboardServer
  If there is only one USB camera connected then DslrDashboard will open that one.
  If there are more USB cameras connected DslrDashboard will display a dialog where you can select the desired camera.
  
- You can find installation image for MR3040 at https://code.google.com/p/dslrdashboard/downloads/list
+ You can find installation image for MR3040 at http://dslrdashboard.info/downloads/
  or you can contact me if you have problem building your own image.
  
  **Added a simple device discovery**
  
 ## Compile DslrDashboard Server on OpenWrt
  
- Clone the *DslrDashboardServer* repository to the *packages* directory on OpenWrt:
+ Clone the *DslrDashboardServer* repository to the *package* directory on OpenWrt:
  
- 	git clone git://github.com/hubaiz/DslrDashboardServer packages/DslrDashboardServer
+ 	git clone git://github.com/hubaiz/DslrDashboardServer package/DslrDashboardServer
  
  Run then the following commands:
  
