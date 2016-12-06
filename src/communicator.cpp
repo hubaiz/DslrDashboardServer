@@ -248,6 +248,10 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
 	int packetSize = le32toh(header->packet_len);
 	int writen = 0;
 
+	// is Nikon set application mode
+	bool isNikon = mVendorId == 0x04b0 && le32toh(header->packet_command) == 0x1016 && packetSize >= 16 && *(uint32_t *)&buf[12] == htole32(0xd1f0);
+	if (isNikon)
+		syslog(LOG_INFO, "Nikon set application mode command");
 //	syslog(LOG_INFO, "sending packet to USB device");
 
 	int r = libusb_bulk_transfer(mHandle, mWriteEndpoint, &buf[0], packetSize, &writen, 4000);
@@ -264,6 +268,18 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
 				if (writen != le32toh(header->packet_len))
 					syslog(LOG_ERR, "Command data Packet size was: %d  writen: %d", le32toh(header->packet_len), writen);
 
+                                if (isNikon)
+                                {
+                                    uint8_t *buf = (uint8_t *)malloc(512);
+                                    int read = 0;
+                                    if (readPtpPacket(buf, 512, read, true))
+                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+                                    if (readPtpPacket(buf, 512, read, true))
+                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+                                    if (readPtpPacket(buf, 512, read, true))
+                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+
+                                }
 				result = handleIncomingUsbPtpPacket();
 			}
 			else
@@ -377,8 +393,14 @@ uint8_t * Communicator::readUsbPacket(int &length)
 	return NULL;
 }
 
-bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length )
+bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length, bool interrupt )
 {
+        uint8_t ep = mReadEndpoint;
+        unsigned int tOut = 10000;
+        if (interrupt) {
+            ep = mInterruptEndpoint;
+            tOut = 100;
+        }
 	bool success = false;
 	int retry = 0;
 	length = 0;
@@ -386,7 +408,7 @@ bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length )
 
 //	syslog(LOG_INFO,"readPtpPacket");
 	while (true) {
-		r = libusb_bulk_transfer(mHandle, mReadEndpoint, buf, bufSize, &readBytes, 4000);
+                r = libusb_bulk_transfer(mHandle, ep, buf, bufSize, &readBytes, tOut);
 //		syslog(LOG_INFO, "USB read result: %d  read bytes: %d", r, readBytes);
 		if (r == 0) {
 			if (readBytes > 0) {
@@ -481,7 +503,7 @@ bool Communicator::initUsbDevice(libusb_device *device)
 						while (j < inter->num_altsetting) {
 							interdesc = &inter->altsetting[j];
 							if (interdesc->bInterfaceClass == 6) {
-								uint8_t readEp = 129, writeEp = 2;
+								uint8_t readEp = 129, writeEp = 2, interruptEp = 131;
 								for (int k = 0; k < (int) interdesc->bNumEndpoints; k++) {
 									epdesc = &interdesc->endpoint[k];
 									if ((epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_ISOCHRONOUS)) || (epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_BULK))) {
@@ -492,8 +514,13 @@ bool Communicator::initUsbDevice(libusb_device *device)
 										writeEp = epdesc->bEndpointAddress;
 										syslog(LOG_INFO, "Write endpoint adress: %d", writeEp);
 									}
+									if (epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_INTERRUPT))
+        								{
+										interruptEp = epdesc->bEndpointAddress;
+										syslog(LOG_INFO, "Interrupt endpoint address: %d", interruptEp);
+									}
 								}
-								result = claimInterface(readEp, writeEp, i);
+								result = claimInterface(readEp, writeEp, interruptEp, i);
 								if (result)
 								{
 									mVendorId = desc.idVendor;
@@ -519,12 +546,13 @@ bool Communicator::initUsbDevice(libusb_device *device)
 	return result;
 }
 
-bool Communicator::claimInterface(uint8_t readEp, uint8_t writeEp, int interfaceNo)
+bool Communicator::claimInterface(uint8_t readEp, uint8_t writeEp, uint8_t interruptEp, int interfaceNo)
 {
 
 	int r;
 	mReadEndpoint = readEp;
 	mWriteEndpoint = writeEp;
+	mInterruptEndpoint = interruptEp;
 	mImagingInterface = interfaceNo;
 
 	if (libusb_kernel_driver_active(mHandle, 0) == 1) { //find out if kernel driver is attached
@@ -666,8 +694,8 @@ void Communicator::sendUsbDeviceList(uint32_t sessionId)
 
 	if (imgUsbDevices.size() > 0)
 	{
-		// packet_size + data_packet_ptp_header + response_packet_ptp_header
-		int len = 4 + (PTP_HEADER * 2);
+		// packet_size + device_count + data_packet_ptp_header + response_packet_ptp_header
+		int len = 4 + 2 + (PTP_HEADER * 2);
 		// space for device count
 		int devLen = 2;
 		// determine size of the devices

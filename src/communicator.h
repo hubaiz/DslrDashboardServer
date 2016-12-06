@@ -67,6 +67,7 @@ private:
 	//bool mInterfaceClaimed;
 	uint8_t mReadEndpoint;
 	uint8_t mWriteEndpoint;
+	uint8_t mInterruptEndpoint;
 
 	uint16_t mVendorId;
 	uint16_t mProductId;
@@ -86,11 +87,11 @@ private:
 	bool processUsbPacket(uint8_t * buf, int size);
 	bool handleIncomingUsbPtpPacket();
 	uint8_t * readUsbPacket(int &length);
-	bool readPtpPacket(uint8_t *buf, int bufSize, int &length );
+        bool readPtpPacket(uint8_t *buf, int bufSize, int &length, bool interrupt = false );
 
-	bool openUsbDevice(uint16_t vendorId, uint16_t productId);
+        bool openUsbDevice(uint16_t vendorId, uint16_t productId);
 	bool initUsbDevice(libusb_device *device);
-	bool claimInterface(uint8_t readEp, uint8_t writeEp, int interfaceNo);
+	bool claimInterface(uint8_t readEp, uint8_t writeEp, uint8_t interruptEp, int interfaceNo);
 	bool canOpenUsbImagingDevice(libusb_device *dev, libusb_device_descriptor *desc);
 	void closeUsbDevice();
 
