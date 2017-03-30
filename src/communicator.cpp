@@ -249,7 +249,7 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
 	int writen = 0;
 
 	// is Nikon set application mode
-	bool isNikon = mVendorId == 0x04b0 && le32toh(header->packet_command) == 0x1016 && packetSize >= 16 && *(uint32_t *)&buf[12] == htole32(0xd1f0);
+	bool isNikon = mVendorId == 0x04b0 && le16toh(header->packet_command) == 0x1016 && packetSize >= 16 && *(uint32_t *)&buf[12] == htole32(0xd1f0);
 	if (isNikon)
 		syslog(LOG_INFO, "Nikon set application mode command");
 //	syslog(LOG_INFO, "sending packet to USB device");
