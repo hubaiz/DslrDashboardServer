@@ -32,7 +32,7 @@ endef
 
 define Build/Compile
 	$(MAKE) -C $(PKG_BUILD_DIR) \
-		LIBS="-nodefaultlibs -lgcc -lc -lusb-1.0 -lpthread -luClibc++" \
+		LIBS="-nodefaultlibs -lgcc_s -lc -lusb-1.0 -lpthread -luClibc++" \
 		LDFLAGS="$(EXTRA_LDFLAGS)" \
 		CXXFLAGS="$(TARGET_CFLAGS) $(EXTRA_CPPFLAGS)" \
 		$(TARGET_CONFIGURE_OPTS) \
