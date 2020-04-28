@@ -18,7 +18,7 @@ int main() {
 //		startUdpListener();
 
 	pthread_t myThread;
-	int r = pthread_create(&myThread, NULL, udpThread, NULL);
+	int r = pthread_create(&myThread, nullptr, udpThread, nullptr);
 
 	if (r)
 		syslog(LOG_ERR, "error creating client thread");
@@ -31,7 +31,7 @@ int main() {
 void * udpThread(void *param) {
 	startUdpListener();
 
-	pthread_exit(NULL);
+	pthread_exit(nullptr);
 }
 
 int createUdpSocket()
@@ -246,7 +246,7 @@ void startSocketServer(int port) {
 
 			pthread_t myThread;
 
-			int r = pthread_create(&myThread, NULL, clientThread, &clientSocket);
+			int r = pthread_create(&myThread, nullptr, clientThread, &clientSocket);
 
 			if (r)
 				syslog(LOG_ERR, "error creating client thread");
@@ -263,7 +263,7 @@ void * clientThread(void * param) {
 	Communicator communicator;
 	communicator.handleClientConnection(clientSocket);
 
-	pthread_exit(NULL);
+	pthread_exit(nullptr);
 }
 
 /*

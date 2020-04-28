@@ -7,8 +7,8 @@
 
 #include "communicator.h"
 
-Communicator::Communicator() : mSocket(0), mCtx(NULL), //mIsInitialized(false), mIsUsbInitialized(false),
-							   mHandle(NULL), mDevice(NULL), mImagingInterface(-1),
+Communicator::Communicator() : mSocket(0), mCtx(nullptr), //mIsInitialized(false), mIsUsbInitialized(false),
+							   mHandle(nullptr), mDevice(nullptr), mImagingInterface(-1),
 							   mVendorId(0), mProductId(0) //, mInterfaceClaimed(false)
 {
 	int r = libusb_init(&mCtx);
@@ -30,7 +30,7 @@ Communicator::~Communicator() {
 
 bool Communicator::isUsbContextInitialized()
 {
-	return mCtx != NULL;
+	return mCtx != nullptr;
 }
 bool Communicator::isSocketInitialized()
 {
@@ -38,7 +38,7 @@ bool Communicator::isSocketInitialized()
 }
 bool Communicator::isInitialized()
 {
-	return mDevice != NULL && mImagingInterface >= 0;
+	return mDevice != nullptr && mImagingInterface >= 0;
 }
 void Communicator::handleClientConnection(int socket)
 {
@@ -227,6 +227,17 @@ bool Communicator::processPacket(uint8_t *buf, int size)
 		sendResponsePacket(0x2001, le32toh(header->session_ID));
 		return false;
 		break;
+	case 0x0004:
+		if (!isInitialized()) {
+			sendResponsePacket(0x2003, le32toh(header->session_ID));
+			return true;
+		} else {
+//	                syslog(LOG_INFO, "interrupt packet request");
+			if (!handleIncomingUsbPtpPacket(true))
+				sendResponsePacket(0x2003, le32toh(header->session_ID));
+			return true;
+		}
+		break;
 	default:
 		{
 			// if not initialized then ignore
@@ -270,15 +281,29 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
 
                                 if (isNikon)
                                 {
-                                    uint8_t *buf = (uint8_t *)malloc(512);
+                                    uint8_t *buf;// = (uint8_t *)malloc(512);
                                     int read = 0;
-                                    if (readPtpPacket(buf, 512, read, true))
-                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
-                                    if (readPtpPacket(buf, 512, read, true))
-                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
-                                    if (readPtpPacket(buf, 512, read, true))
-                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+                                    buf = readUsbPacket(read, true);
+                                    syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+                                    if (buf != nullptr)
+                                        free(buf);
+                                    buf = readUsbPacket(read, true);
+                                    syslog(LOG_INFO, "Nikon read second interrupt %d", read);
+                                    if (buf != nullptr)
+                                        free(buf);
+                                    buf = readUsbPacket(read, true);
+                                    syslog(LOG_INFO, "Nikon read third interrupt %d", read);
+                                    if (buf != nullptr)
+                                        free(buf);
 
+/*
+                                    if (readPtpPacket(buf, 512, read, true))
+                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+                                    if (readPtpPacket(buf, 512, read, true))
+                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+                                    if (readPtpPacket(buf, 512, read, true))
+                                        syslog(LOG_INFO, "Nikon read first interrupt %d", read);
+*/
                                 }
 				result = handleIncomingUsbPtpPacket();
 			}
@@ -293,14 +318,14 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
 	return result;
 }
 
-bool Communicator::handleIncomingUsbPtpPacket()
+bool Communicator::handleIncomingUsbPtpPacket(bool isInterrupt)
 {
 	bool result = false;
 	int r, readBytes = 0;
-	uint8_t *readBuf = NULL;
+	uint8_t *readBuf = nullptr;
 
-	readBuf = readUsbPacket(readBytes);
-	if (readBuf != NULL) {
+	readBuf = readUsbPacket(readBytes, isInterrupt);
+	if (readBuf != nullptr) {
 		r = sendBuffer(readBuf, readBytes);
 		free(readBuf);
 
@@ -309,29 +334,140 @@ bool Communicator::handleIncomingUsbPtpPacket()
 	return result;
 }
 
-uint8_t * Communicator::readUsbPacket(int &length)
+uint8_t * Communicator::readUsbPacket(int &length, bool isInterrupt)
 {
 	uint32_t packetSize1 = 0, packetSize2 = 0;
-	int readBytes = 0, currentPacketSize = 4100, offset = 4;
+	int readBytes = 0;
+	int totalRead = 0;
+	int  currentPacketSize = 4100;
+	int  offset = 4;
 	PtpPacket *ptpPacket;
 	bool isResponse = false, resume = true;
-
+    int runNo = 0;
 	uint8_t *buf = (uint8_t *)malloc(currentPacketSize);
+    length = 0;
 
-	if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes)) {
-//		syslog(LOG_INFO, "first currentPacketSize: %d  offset: %d   readBytes: %d", currentPacketSize, offset, readBytes);
+	while(packetSize1 == 0 || totalRead < packetSize1) {
+        runNo++;
+        if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes, isInterrupt)) {
+            if (readBytes == 0)
+                break;
+            offset += readBytes;
+            totalRead += readBytes;
+            if (isInterrupt)
+                syslog(LOG_INFO, "interrupt run: %d totalRead: %d  offset: %d   readBytes: %d", runNo, totalRead, offset, readBytes);
+            if (totalRead >= 4) {
+                ptpPacket = (PtpPacket *)&buf[4];
+                packetSize1 = ptpPacket->packet_len;
+                if (isInterrupt)
+                    syslog(LOG_INFO, "interrupt run: %d packetSize1: %d", runNo, packetSize1);
+                if (packetSize1 > currentPacketSize - 4) {
+                    currentPacketSize = 4 + packetSize1 + 4096;
+                    buf = (uint8_t *)realloc(buf, currentPacketSize);
+                }
+            }
+        }
+        else
+            break;
+	}
+    if (packetSize1 != 0) {
+        length = packetSize1 + 4;
+        *(uint32_t *)&buf[0] = htole32(length);
 
-		ptpPacket = (PtpPacket *)&buf[4];
-		packetSize1 = le32toh(ptpPacket->packet_len);
-		isResponse = le16toh(ptpPacket->packet_type) == 0x0003;
-//		syslog(LOG_INFO, "packetSize1: %d", packetSize1);
+        isResponse = le16toh(ptpPacket->packet_type) == 0x0003 || le16toh(ptpPacket->packet_type) == 0x0004;
 
+        if (!isResponse) {
+            if (currentPacketSize < 4 + packetSize1 + 128) {
+                currentPacketSize = 4 + packetSize1 + 128;
+                buf = (uint8_t *)realloc(buf, currentPacketSize);
+            }
+            totalRead = totalRead - packetSize1;
+            ptpPacket = (PtpPacket *)&buf[packetSize1 + 4];
+
+            while(packetSize2 == 0 || totalRead < packetSize2) {
+                if (readPtpPacket(&buf[offset], currentPacketSize - offset - 4, readBytes, isInterrupt)) {
+                    if (readBytes == 0)
+                        break;
+                    offset += readBytes;
+                    totalRead += readBytes;
+                    if (totalRead >= 4)
+                        packetSize2 = ptpPacket->packet_len;
+                }
+                else
+                    break;
+            }
+            length = 4 + packetSize1 + packetSize2;
+            *(uint32_t *)&buf[0] = htole32(length);
+        }
+        return buf;
+    }
+	/*
+	if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes, isInterrupt)) {
+        totalRead += readBytes;
+        offset += readBytes;
+		if (isInterrupt)
+            syslog(LOG_INFO, "first currentPacketSize: %d  offset: %d   readBytes: %d", currentPacketSize, offset, readBytes);
+
+        if (readBytes >= 4) {
+            ptpPacket = (PtpPacket *)&buf[4];
+            packetSize1 = le32toh(ptpPacket->packet_len);
+            if (packetSize1 > (uint32_t)(currentPacketSize - 4)) {
+                currentPacketSize = 4 + packetSize1 + 4096;
+                buf = (uint8_t *)realloc(buf, currentPacketSize);
+            }
+            while(totalRead < packetSize1) {
+                if (readPtpPacket(&buf[offset], packetSize1 - totalRead, readBytes, isInterrupt)) {
+                    totalRead += readBytes;
+                    offset += readBytes;
+                    syslog(LOG_INFO, "additional read packetSize: %d totalRead: %d  offset: %d   readBytes: %d", packetSize1, totalRead, offset, readBytes);
+                }
+                else
+                    break;
+            }
+            if (totalRead >= packetSize1) {
+                length = packetSize1 + 4;
+                *(uint32_t *)&buf[0] = htole32(length);
+
+                isResponse = le16toh(ptpPacket->packet_type) == 0x0003 || le16toh(ptpPacket->packet_type) == 0x0004;
+
+                if (!isResponse) {
+                        if (currentPacketSize < 4 + packetSize1 + 128) {
+                            currentPacketSize = 4 + packetSize1 + 128;
+                            buf = (uint8_t *)realloc(buf, currentPacketSize);
+                        }
+                        totalRead = totalRead - packetSize1;
+                        ptpPacket = (PtpPacket *)&buf[packetSize1 + 4];
+                        while(packetSize2 < totalRead) {
+                            if (readPtpPacket(&buf[offset], currentPacketSize - offset - 4, readBytes, isInterrupt)) {
+                                offset += readBytes;
+                                totalRead += readBytes;
+                                if (totalRead >= 4)
+                                    packetSize2 = ptpPacket->packet_len;
+                            }
+                            else
+                                break;
+                        }
+                }
+                return buf;
+            }
+        }
+		/*
+		if (isInterrupt && readBytes ==8) {
+			if (readPtpPacket(&buf[offset+readBytes], currentPacketSize - offset - readBytes, readBytes, isInterrupt)) {
+				syslog(LOG_INFO, "second interrupt read success");
+			}
+			else
+				syslog(LOG_INFO, "second interrupt read failed");
+		}
+		*/
+        /*
 		if (packetSize1 > (uint32_t)(currentPacketSize - 4)) {
 			offset = currentPacketSize;
 			currentPacketSize = 4 + packetSize1 + 4096;
 			buf = (uint8_t *)realloc(buf, currentPacketSize);
-			if (readPtpPacket(&buf[offset], packetSize1 - (offset-4 ), readBytes)) {
-//				syslog(LOG_INFO, "second packetSize1: %d currentPacketSize: %d  offset: %d   readBytes: %d", packetSize1, currentPacketSize, offset, readBytes);
+			if (readPtpPacket(&buf[offset], packetSize1 - (offset-4 ), readBytes, isInterrupt)) {
+                if (isInterrupt)
+                    syslog(LOG_INFO, "second packetSize1: %d currentPacketSize: %d  offset: %d   readBytes: %d", packetSize1, currentPacketSize, offset, readBytes);
 			}
 			else
 				resume = false;
@@ -386,21 +522,25 @@ uint8_t * Communicator::readUsbPacket(int &length)
 		}
 
 	}
-
-	syslog(LOG_ERR, "error reading USB PTP packets");
+    */
+//	syslog(LOG_ERR, "error reading USB PTP packets");
 	free(buf);
 	length = 0;
-	return NULL;
+	return nullptr;
 }
 
 bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length, bool interrupt )
 {
-        uint8_t ep = mReadEndpoint;
-        unsigned int tOut = 10000;
-        if (interrupt) {
-            ep = mInterruptEndpoint;
-            tOut = 100;
-        }
+    if (buf == nullptr)
+        return false;
+    uint8_t ep = mReadEndpoint;
+    uint16_t epMax = bufSize < mReadMax ? bufSize : mReadMax;
+    unsigned int tOut = 10000;
+    if (interrupt) {
+        ep = mInterruptEndpoint;
+        epMax = mInterruptMax < bufSize ? mInterruptMax : bufSize;
+        tOut = 100;
+    }
 	bool success = false;
 	int retry = 0;
 	length = 0;
@@ -408,8 +548,17 @@ bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length, bool in
 
 //	syslog(LOG_INFO,"readPtpPacket");
 	while (true) {
-                r = libusb_bulk_transfer(mHandle, ep, buf, bufSize, &readBytes, tOut);
-//		syslog(LOG_INFO, "USB read result: %d  read bytes: %d", r, readBytes);
+//                r = libusb_bulk_transfer(mHandle, ep, buf, bufSize, &readBytes, tOut);
+		if (interrupt) {
+			 r = libusb_interrupt_transfer(mHandle, ep, buf, epMax, &readBytes, tOut);
+			if (r == 0) {
+				syslog(LOG_INFO, "USB interrupt read result: %d  read bytes: %d", r, readBytes);
+				for(int i =0; i < readBytes; i++)
+					syslog(LOG_INFO, "byte %x", buf[i]);
+			}
+		}
+		else
+			 r = libusb_bulk_transfer(mHandle, ep, buf, epMax, &readBytes, tOut);
 		if (r == 0) {
 			if (readBytes > 0) {
 				success = true;
@@ -426,13 +575,14 @@ bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length, bool in
 		if (r < 0) {
 			retry++;
 			if (retry > 5) {
-				syslog(LOG_ERR, "No USB data after 5 retries");
+//				syslog(LOG_ERR, "No USB data after 5 retries");
 				break;
 			}
 		}
 	}
 	return success;
 }
+
 
 bool Communicator::openUsbDevice(uint16_t vendorId, uint16_t productId)
 {
@@ -487,10 +637,10 @@ bool Communicator::initUsbDevice(libusb_device *device)
 	int r;
 	bool result = false;
 
-	if (device != NULL) {
+	if (device != nullptr) {
 	mDevice = device;
 	r = libusb_open(device, &mHandle);
-	if (r == 0 && mHandle != NULL) {
+	if (r == 0 && mHandle != nullptr) {
 		syslog(LOG_INFO, "USB device opened");
 		r = libusb_get_device_descriptor(mDevice, &desc);
 		if (r == 0) {
@@ -504,23 +654,27 @@ bool Communicator::initUsbDevice(libusb_device *device)
 							interdesc = &inter->altsetting[j];
 							if (interdesc->bInterfaceClass == 6) {
 								uint8_t readEp = 129, writeEp = 2, interruptEp = 131;
+								uint16_t readMax = 512, writeMax = 512, interruptMax = 8;
 								for (int k = 0; k < (int) interdesc->bNumEndpoints; k++) {
 									epdesc = &interdesc->endpoint[k];
 									if ((epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_ISOCHRONOUS)) || (epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_BULK))) {
 										readEp = epdesc->bEndpointAddress;
-										syslog(LOG_INFO, "Read endpoint adress: %d", readEp);
+										readMax = epdesc->wMaxPacketSize;
+										syslog(LOG_INFO, "Read endpoint adress: %d max pSize %d", readEp, epdesc->wMaxPacketSize);
 									}
 									if ((epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_OUT | LIBUSB_TRANSFER_TYPE_ISOCHRONOUS)) || (epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_OUT	| LIBUSB_TRANSFER_TYPE_BULK))) {
 										writeEp = epdesc->bEndpointAddress;
-										syslog(LOG_INFO, "Write endpoint adress: %d", writeEp);
+										writeMax = epdesc->wMaxPacketSize;
+										syslog(LOG_INFO, "Write endpoint adress: %d max pSize %d", writeEp, epdesc->wMaxPacketSize);
 									}
 									if (epdesc->bEndpointAddress == (LIBUSB_ENDPOINT_IN | LIBUSB_TRANSFER_TYPE_INTERRUPT))
         								{
 										interruptEp = epdesc->bEndpointAddress;
-										syslog(LOG_INFO, "Interrupt endpoint address: %d", interruptEp);
+										interruptMax = epdesc->wMaxPacketSize;
+										syslog(LOG_INFO, "Interrupt endpoint address: %d max pSize %d", interruptEp, epdesc->wMaxPacketSize);
 									}
 								}
-								result = claimInterface(readEp, writeEp, interruptEp, i);
+								result = claimInterface(readEp, readMax, writeEp, writeMax, interruptEp, interruptMax, i);
 								if (result)
 								{
 									mVendorId = desc.idVendor;
@@ -546,13 +700,16 @@ bool Communicator::initUsbDevice(libusb_device *device)
 	return result;
 }
 
-bool Communicator::claimInterface(uint8_t readEp, uint8_t writeEp, uint8_t interruptEp, int interfaceNo)
+bool Communicator::claimInterface(uint8_t readEp, uint16_t readMax, uint8_t writeEp, uint16_t writeMax, uint8_t interruptEp, uint16_t interruptMax, int interfaceNo)
 {
 
 	int r;
 	mReadEndpoint = readEp;
+	mReadMax = readMax;
 	mWriteEndpoint = writeEp;
+	mWriteMax = writeMax;
 	mInterruptEndpoint = interruptEp;
+	mInterruptMax = interruptMax;
 	mImagingInterface = interfaceNo;
 
 	if (libusb_kernel_driver_active(mHandle, 0) == 1) { //find out if kernel driver is attached
@@ -651,7 +808,7 @@ void Communicator::closeUsbDevice()
 {
 	syslog(LOG_INFO, "Closing USB device");
 	int r;
-	if (mImagingInterface >= 0 && mHandle != NULL) {
+	if (mImagingInterface >= 0 && mHandle != nullptr) {
 		r = libusb_release_interface(mHandle, mImagingInterface);
 		if (r == 0)
 			syslog(LOG_INFO, "USB interface released");
@@ -659,9 +816,9 @@ void Communicator::closeUsbDevice()
 			syslog(LOG_ERR, "Unable to release USB interface");
 		mImagingInterface = -1;
 	}
-	if (mHandle != NULL) {
+	if (mHandle != nullptr) {
 		libusb_close(mHandle);
-		mHandle = NULL;
+		mHandle = nullptr;
 	}
 }
 void Communicator::sendUsbDeviceList(uint32_t sessionId)
