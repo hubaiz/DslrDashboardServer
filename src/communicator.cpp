@@ -283,15 +283,15 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
                                 {
                                     uint8_t *buf;// = (uint8_t *)malloc(512);
                                     int read = 0;
-                                    buf = readUsbPacket(read, true);
+                                    buf = readUsbPacket(read, true,200);
                                     syslog(LOG_INFO, "Nikon read first interrupt %d", read);
                                     if (buf != nullptr)
                                         free(buf);
-                                    buf = readUsbPacket(read, true);
+                                    buf = readUsbPacket(read, true,200);
                                     syslog(LOG_INFO, "Nikon read second interrupt %d", read);
                                     if (buf != nullptr)
                                         free(buf);
-                                    buf = readUsbPacket(read, true);
+                                    buf = readUsbPacket(read, true,200);
                                     syslog(LOG_INFO, "Nikon read third interrupt %d", read);
                                     if (buf != nullptr)
                                         free(buf);
@@ -323,8 +323,10 @@ bool Communicator::handleIncomingUsbPtpPacket(bool isInterrupt)
 	bool result = false;
 	int r, readBytes = 0;
 	uint8_t *readBuf = nullptr;
-
-	readBuf = readUsbPacket(readBytes, isInterrupt);
+	unsigned int tOut = 0;
+	if (isInterrupt && mVendorId == 0x04b0)
+		tOut = 200;
+	readBuf = readUsbPacket(readBytes, isInterrupt, tOut);
 	if (readBuf != nullptr) {
 		r = sendBuffer(readBuf, readBytes);
 		free(readBuf);
@@ -334,7 +336,7 @@ bool Communicator::handleIncomingUsbPtpPacket(bool isInterrupt)
 	return result;
 }
 
-uint8_t * Communicator::readUsbPacket(int &length, bool isInterrupt)
+uint8_t * Communicator::readUsbPacket(int &length, bool isInterrupt, unsigned int timeOut)
 {
 	uint32_t packetSize1 = 0, packetSize2 = 0;
 	int readBytes = 0;
@@ -349,7 +351,7 @@ uint8_t * Communicator::readUsbPacket(int &length, bool isInterrupt)
 
 	while(packetSize1 == 0 || totalRead < packetSize1) {
         runNo++;
-        if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes, isInterrupt)) {
+        if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes, isInterrupt, timeOut)) {
             if (readBytes == 0)
                 break;
             offset += readBytes;
@@ -385,7 +387,7 @@ uint8_t * Communicator::readUsbPacket(int &length, bool isInterrupt)
             ptpPacket = (PtpPacket *)&buf[packetSize1 + 4];
 
             while(packetSize2 == 0 || totalRead < packetSize2) {
-                if (readPtpPacket(&buf[offset], currentPacketSize - offset - 4, readBytes, isInterrupt)) {
+                if (readPtpPacket(&buf[offset], currentPacketSize - offset - 4, readBytes, isInterrupt, timeOut)) {
                     if (readBytes == 0)
                         break;
                     offset += readBytes;
@@ -529,7 +531,7 @@ uint8_t * Communicator::readUsbPacket(int &length, bool isInterrupt)
 	return nullptr;
 }
 
-bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length, bool interrupt )
+bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length, bool interrupt, unsigned int timeOut )
 {
     if (buf == nullptr)
         return false;
@@ -539,7 +541,14 @@ bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length, bool in
     if (interrupt) {
         ep = mInterruptEndpoint;
         epMax = mInterruptMax < bufSize ? mInterruptMax : bufSize;
-        tOut = 100;
+	if (timeOut != 0)
+	        tOut = timeOut;
+	else
+		tOut = 5;
+    }
+    else {
+	if (timeOut != 0)
+		tOut = timeOut;
     }
 	bool success = false;
 	int retry = 0;

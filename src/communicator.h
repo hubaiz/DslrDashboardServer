@@ -89,8 +89,8 @@ private:
 	bool processPacket(uint8_t *buf, int size) ;
 	bool processUsbPacket(uint8_t * buf, int size);
 	bool handleIncomingUsbPtpPacket(bool isInterrupt = false);
-	uint8_t * readUsbPacket(int &length, bool isInterrupt = false);
-        bool readPtpPacket(uint8_t *buf, int bufSize, int &length, bool interrupt = false );
+	uint8_t * readUsbPacket(int &length, bool isInterrupt = false, unsigned int timeOut = 0);
+        bool readPtpPacket(uint8_t *buf, int bufSize, int &length, bool interrupt = false, unsigned int timeOut = 0 );
 
         bool openUsbDevice(uint16_t vendorId, uint16_t productId);
 	bool initUsbDevice(libusb_device *device);
