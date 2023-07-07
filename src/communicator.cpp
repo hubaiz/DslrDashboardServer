@@ -12,8 +12,9 @@ Communicator::Communicator() : mSocket(0), mCtx(NULL), //mIsInitialized(false), 
 							   mVendorId(0), mProductId(0) //, mInterfaceClaimed(false)
 {
 	int r = libusb_init(&mCtx);
-	if (r == 0)
-		libusb_set_debug(mCtx, 0); //set verbosity level to 3, as suggested in the documentation
+	if (r == 0) {
+		libusb_set_option(mCtx, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_INFO ); //set verbosity level to 3, as suggested in the documentation
+        }
 	else
 		syslog(LOG_ERR, "Error initializing libusb %d", r);
 
@@ -249,7 +250,7 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
 	int writen = 0;
 
 	// is Nikon set application mode
-	bool isNikon = mVendorId == 0x04b0 && le32toh(header->packet_command) == 0x1016 && packetSize >= 16 && *(uint32_t *)&buf[12] == htole32(0xd1f0);
+	bool isNikon = mVendorId == 0x04b0 && le16toh(header->packet_command) == 0x1016 && packetSize >= 16 && *(uint32_t *)&buf[12] == htole32(0xd1f0);
 	if (isNikon)
 		syslog(LOG_INFO, "Nikon set application mode command");
 //	syslog(LOG_INFO, "sending packet to USB device");
