@@ -1,6 +1,6 @@
 DslrDashboardServer
 ===================
-  
+
  DslrDashboardServer (ddserver) allows network connections (wired/wireless) for connected USB imaging devices (DSLR cameras) to DslrDashboard.
  It can provide multiple USB camera connections to same or different DslrDashboard client.
  It is primary writen for OpenWrt (TP-Link MR3040 or WR703N) but it will run on any Linux distribution including Raspbery Pi or pcDuino for example.
@@ -33,14 +33,29 @@ DslrDashboardServer
 
 ## Compile DslrDashboard Server on Debian based distributions, such as Ubuntu and Raspbian
 
-	sudo apt-get install build-essential pkg-config libusb-1.0-0-dev
-	g++ -Wall src/main.cpp src/communicator.cpp `pkg-config --libs --cflags libusb-1.0` -lpthread -lrt -lstdc++ -o ddserver
+```sh
+sudo apt-get install build-essential cmake libusb-1.0-0-dev
+mkdir build
+cd build
+cmake ..
+sudo cmake install
+sudo systemctl daemon-reload
+sudo systemctl enable ddserver.service
+sudo systemctl start ddserver.service
+```
+
+check the status whenever `sudo systemctl status ddserver.service`
 
 ## Compile DslrDashboard Server on other Linux distributions
 
-	g++ -Wall src/main.cpp src/communicator.cpp -I/usr/include/libusb-1.0/ -lusb-1.0 -lpthread -lrt -lstdc++ -o ddserver
+install libusb, cmake, and any appropriate build essentials package, then build and install
 
-Make the resulting *ddserver* binary executable and launch the server:
-
-	chmod +x ddserver
-	./ddserver
+```sh
+mkdir build
+cd build
+cmake ..
+sudo cmake install
+sudo systemctl daemon-reload
+sudo systemctl enable ddserver.service
+sudo systemctl start ddserver.service
+```

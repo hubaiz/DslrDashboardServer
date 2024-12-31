@@ -1,0 +1,12 @@
+[Unit]
+Description=DslrDashboard Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=@CMAKE_INSTALL_PREFIX@/bin/ddserver
+PIDFile=/run/ddserver.pid
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
